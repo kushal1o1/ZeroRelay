@@ -1,6 +1,7 @@
 // P2P Data Channel message types
 export interface SharedItem {
   id: string;
+  roomId: string;
   peerId: string;
   peerName: string;
   type: "text" | "file";

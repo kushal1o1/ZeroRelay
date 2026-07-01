@@ -4,12 +4,14 @@ import { useRoomContext } from "@/components/room-provider";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { useRoomStore } from "@/stores/room-store";
 import { useUIStore } from "@/stores/ui-store";
 import { useState } from "react";
 
 export function CreateRoomDialog() {
-  const { dialog, setDialog, addRoom } = useUIStore();
+  const { dialog, setDialog, addRoom, setActiveRoomId } = useUIStore();
   const { joinRoom } = useRoomContext();
+  const peerId = useRoomStore((s) => s.peerId);
   const [name, setName] = useState("");
   const [password, setPassword] = useState("");
 
@@ -19,7 +21,14 @@ export function CreateRoomDialog() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const id = name.toLowerCase().replace(/\s+/g, "-");
-    addRoom({ id, name, hasPassword: !!password });
+    addRoom({
+      id,
+      name,
+      hasPassword: !!password,
+      password: password || undefined,
+      createdBy: isCreate ? peerId : undefined,
+    });
+    setActiveRoomId(id);
     joinRoom(id, password || undefined);
     setDialog(null);
   };

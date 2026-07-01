@@ -158,10 +158,12 @@ export function useRoom() {
 
   const shareText = useCallback(
     (content: string, targetPeerId?: string) => {
+      const state = useRoomStore.getState();
       const item: SharedItem = {
         id: generateId(),
+        roomId: state.roomId || "global",
         peerId,
-        peerName: useRoomStore.getState().name,
+        peerName: state.name,
         type: "text",
         content,
         timestamp: Date.now(),
@@ -173,10 +175,12 @@ export function useRoom() {
 
   const shareFile = useCallback(
     (file: File, targetPeerId?: string) => {
+      const state = useRoomStore.getState();
       const item: SharedItem = {
         id: generateId(),
+        roomId: state.roomId || "global",
         peerId,
-        peerName: useRoomStore.getState().name,
+        peerName: state.name,
         type: "file",
         fileName: file.name,
         fileSize: file.size,

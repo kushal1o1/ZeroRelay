@@ -4,7 +4,7 @@ type Listener = (msg: ServerMessage) => void;
 
 export class SignalingClient {
   private ws: WebSocket | null = null;
-  private url: string;
+  url: string;
   private listeners = new Set<Listener>();
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private _connected = false;
@@ -13,6 +13,7 @@ export class SignalingClient {
   // is re-registered after a socket drop — and so a join issued while the
   // socket is still CONNECTING isn't lost.
   private lastJoin: ClientMessage | null = null;
+  private wsGen = 0;
 
   constructor(url: string) {
     this.url = url;
@@ -26,9 +27,11 @@ export class SignalingClient {
     if (this.ws?.readyState === WebSocket.OPEN || this.ws?.readyState === WebSocket.CONNECTING)
       return;
 
+    const gen = ++this.wsGen;
     this.ws = new WebSocket(this.url);
 
     this.ws.onopen = () => {
+      if (gen !== this.wsGen) return;
       this._connected = true;
       // Replay the join so the server re-registers us (also delivers the very
       // first join if it was attempted before the socket finished opening).
@@ -47,6 +50,7 @@ export class SignalingClient {
     };
 
     this.ws.onclose = () => {
+      if (gen !== this.wsGen) return;
       this._connected = false;
       this.onDisconnect?.();
       this.scheduleReconnect();
@@ -58,12 +62,32 @@ export class SignalingClient {
   }
 
   disconnect() {
+    this.wsGen++;
     if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
+    this.reconnectTimer = null;
     this.listeners.clear();
     this.lastJoin = null;
     this.ws?.close();
     this.ws = null;
     this._connected = false;
+  }
+
+  /** Close the current connection and open a new one to a different URL.
+   *  lastJoin is cleared so a stale room join isn't replayed; the caller
+   *  must send a fresh join message after reconnecting. */
+  reconnect(url: string) {
+    this.url = url;
+    if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
+    this.reconnectTimer = null;
+    this.lastJoin = null;
+    // Fire disconnect *synchronously* so callers (useRoom subscription) tear
+    // down WebRTC etc. before the new WS opens.  The old WS's own onclose
+    // will fire later but is ignored by the wsGen guard.
+    this.onDisconnect?.();
+    this.ws?.close();
+    this.ws = null;
+    this._connected = false;
+    this.connect();
   }
 
   send(msg: ClientMessage) {

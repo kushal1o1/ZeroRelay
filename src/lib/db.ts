@@ -8,8 +8,8 @@ export class ZeroRelayDB extends Dexie {
 
   constructor() {
     super("zerorelay");
-    this.version(1).stores({
-      messages: "id, timestamp, peerId",
+    this.version(2).stores({
+      messages: "id, timestamp, peerId, roomId",
     });
   }
 }
@@ -20,10 +20,18 @@ export async function saveMessage(item: SharedItem) {
   await db.messages.put(item);
 }
 
-export async function getMessages(): Promise<SharedItem[]> {
+export async function getMessages(roomId?: string): Promise<SharedItem[]> {
   const cutoff = Date.now() - EXPIRY_MS;
   await db.messages.where("timestamp").below(cutoff).delete();
-  return db.messages.where("timestamp").above(cutoff).toArray();
+  let query = db.messages.where("timestamp").above(cutoff);
+  if (roomId) {
+    query = query.filter((item) => item.roomId === roomId) as typeof query;
+  }
+  return query.toArray();
+}
+
+export async function getRoomMessages(roomId: string): Promise<SharedItem[]> {
+  return getMessages(roomId);
 }
 
 export async function clearExpired() {

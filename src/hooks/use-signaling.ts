@@ -2,10 +2,11 @@
 
 import { SignalingClient } from "@/lib/signaling";
 import { useRoomStore } from "@/stores/room-store";
+import { useUIStore } from "@/stores/ui-store";
 import { useEffect, useRef } from "react";
 import type { ClientMessage, ServerMessage } from "../../shared/types";
 
-function resolveUrl(): string {
+function resolveBaseUrl(): string {
   const env = process.env.NEXT_PUBLIC_SIGNALING_URL;
   if (env) return env;
   if (typeof window !== "undefined") {
@@ -17,11 +18,16 @@ function resolveUrl(): string {
   return "ws://localhost:8787/api/ws";
 }
 
+function resolveRoomUrl(roomId: string): string {
+  const base = resolveBaseUrl();
+  return roomId === "global" ? base : `${base}/${roomId}`;
+}
+
 let globalClient: SignalingClient | null = null;
 
 function getClient(): SignalingClient {
   if (!globalClient) {
-    globalClient = new SignalingClient(resolveUrl());
+    globalClient = new SignalingClient(resolveBaseUrl());
   }
   return globalClient;
 }
@@ -32,6 +38,8 @@ export function useSignaling(onMessage?: MessageHandler) {
   const clientRef = useRef<SignalingClient>(getClient());
   const handlerRef = useRef(onMessage);
   handlerRef.current = onMessage;
+  const joinRoomRef = useRef<(roomId: string, password?: string) => void>(() => {});
+  // ref is populated after joinRoom is defined below
 
   useEffect(() => {
     const client = clientRef.current;
@@ -66,6 +74,14 @@ export function useSignaling(onMessage?: MessageHandler) {
         case "error":
           state.setError(msg.message);
           break;
+        case "room-deleted":
+          useUIStore.getState().removeRoom(msg.roomId);
+          if (state.roomId === msg.roomId) {
+            state.setRoomId(null);
+            state.setPeers([]);
+            joinRoomRef.current("global");
+          }
+          break;
       }
 
       handlerRef.current?.(msg);
@@ -81,6 +97,12 @@ export function useSignaling(onMessage?: MessageHandler) {
   const joinRoom = (roomId: string, password?: string) => {
     const client = clientRef.current;
     const state = useRoomStore.getState();
+
+    const targetUrl = resolveRoomUrl(roomId);
+    if (client.url !== targetUrl) {
+      client.reconnect(targetUrl);
+    }
+
     state.setRoomId(roomId);
     state.setError(null);
     const msg: ClientMessage = {
@@ -102,7 +124,23 @@ export function useSignaling(onMessage?: MessageHandler) {
     }
     state.setRoomId(null);
     state.setPeers([]);
+
+    // Reconnect to the global room
+    const globalUrl = resolveBaseUrl();
+    if (client.url !== globalUrl) {
+      client.reconnect(globalUrl);
+      const s = useRoomStore.getState();
+      const joinMsg: ClientMessage = {
+        type: "join",
+        roomId: "global",
+        peerId: s.peerId,
+        name: s.name,
+      };
+      client.send(joinMsg);
+    }
   };
+
+  joinRoomRef.current = joinRoom;
 
   const rename = (name: string) => {
     const client = clientRef.current;

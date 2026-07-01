@@ -5,6 +5,7 @@ import { Avatar } from "@/components/ui/avatar";
 import { useStorage } from "@/hooks/use-storage";
 import { useMessageStore } from "@/stores/message-store";
 import { useRoomStore } from "@/stores/room-store";
+import { useUIStore } from "@/stores/ui-store";
 import type { SharedItem } from "@/types/message";
 
 function formatTime(ts: number) {
@@ -61,8 +62,10 @@ function FileRow({ item }: { item: SharedItem }) {
 
 export function SharedFeed() {
   const { items } = useStorage();
+  const activeRoomId = useUIStore((s) => s.activeRoomId);
+  const roomItems = activeRoomId ? items.filter((i) => i.roomId === activeRoomId) : items;
 
-  if (items.length === 0) {
+  if (roomItems.length === 0) {
     return (
       <div className="py-8 text-center text-sm text-muted-foreground">
         No shared items yet. Share something above!
@@ -73,10 +76,10 @@ export function SharedFeed() {
   return (
     <div className="space-y-2">
       <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-        Shared ({items.length})
+        Shared ({roomItems.length})
       </h3>
       <div className="space-y-2 max-h-60 overflow-y-auto">
-        {items.map((item) => (
+        {roomItems.map((item) => (
           <div
             key={item.id}
             className="flex items-start gap-3 rounded-lg border border-border bg-card p-3"
