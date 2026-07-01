@@ -34,7 +34,7 @@
     "typescript": "^5.8.3"
   },
   "lint-staged": {
-    "src/**/*.{ts,tsx}": ["biome check --write"],
-    "*.json": ["biome format --write"]
+    "*.{ts,tsx,json}": ["biome check --write"],
+    "!package-lock.json": ""
   }
 }

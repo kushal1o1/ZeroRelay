@@ -43,6 +43,9 @@ export class RoomDO implements DurableObject {
       case "leave":
         this.handleLeave(msg);
         break;
+      case "delete-room":
+        this.handleDeleteRoom(msg);
+        break;
       case "rename":
         this.handleRename(msg);
         break;
@@ -94,6 +97,16 @@ export class RoomDO implements DurableObject {
     this.connections.delete(msg.peerId);
     this.broadcast({ type: "peer-left", peerId: msg.peerId });
     this.broadcastPresence();
+  }
+
+  private handleDeleteRoom(msg: ClientMessage & { type: "delete-room" }) {
+    // Notify every connected peer (including the sender) that the room is gone.
+    // Do NOT close connections here – ws.close() drops pending sends.
+    // Each client tears down its own WebSocket when it processes "room-deleted".
+    for (const [_, conn] of this.connections) {
+      this.send(conn.ws, { type: "room-deleted", roomId: msg.roomId });
+    }
+    this.connections.clear();
   }
 
   private handleRename(msg: ClientMessage & { type: "rename" }) {

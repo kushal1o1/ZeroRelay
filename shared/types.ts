@@ -22,6 +22,7 @@ export interface ICECandidate {
 export type ClientMessage =
   | { type: "join"; roomId: string; password?: string; peerId: string; name: string }
   | { type: "leave"; roomId: string; peerId: string }
+  | { type: "delete-room"; roomId: string; peerId: string }
   | { type: "rename"; roomId: string; peerId: string; name: string }
   | { type: "offer"; roomId: string; from: string; to: string; sdp: SDP }
   | { type: "answer"; roomId: string; from: string; to: string; sdp: SDP }
@@ -37,7 +38,8 @@ export type ServerMessage =
   | { type: "offer"; from: string; sdp: SDP }
   | { type: "answer"; from: string; sdp: SDP }
   | { type: "ice-candidate"; from: string; candidate: ICECandidate }
-  | { type: "error"; message: string };
+  | { type: "error"; message: string }
+  | { type: "room-deleted"; roomId: string };
 
 // ── Shared ──
 export type Message = ClientMessage | ServerMessage;
