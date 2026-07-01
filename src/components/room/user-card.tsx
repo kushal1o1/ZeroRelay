@@ -18,7 +18,7 @@ export function UserCard({ peer, isSelected, onClick }: UserCardProps) {
         isSelected ? "border-accent bg-accent/5" : "border-border bg-card hover:border-accent/50"
       }`}
     >
-      <Avatar name={peer.name} size="md" />
+      <Avatar name={peer.name} peerId={peer.id} size="md" />
       <div className="min-w-0 flex-1">
         <p className="text-sm font-medium text-foreground truncate">{peer.name}</p>
         <p className="text-xs text-muted-foreground">Online</p>
