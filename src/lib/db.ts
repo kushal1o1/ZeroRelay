@@ -1,7 +1,11 @@
-import type { SharedItem } from "@/types/message";
+import type { Retention, SharedItem } from "@/types/message";
 import Dexie, { type Table } from "dexie";
 
-const EXPIRY_MS = 24 * 60 * 60 * 1000;
+const RETENTION_MS: Record<Exclude<Retention, "session" | "forever">, number> = {
+  "5min": 5 * 60_000,
+  "1h": 60 * 60_000,
+  "1d": 24 * 60 * 60_000,
+};
 
 export interface AvatarRecord {
   peerId: string;
@@ -14,7 +18,7 @@ export class ZeroRelayDB extends Dexie {
 
   constructor() {
     super("zerorelay");
-    this.version(3).stores({
+    this.version(4).stores({
       messages: "id, timestamp, peerId, roomId",
       avatars: "peerId",
     });
@@ -24,13 +28,13 @@ export class ZeroRelayDB extends Dexie {
 export const db = new ZeroRelayDB();
 
 export async function saveMessage(item: SharedItem) {
+  if (item.retention === "session") return;
   await db.messages.put(item);
 }
 
 export async function getMessages(roomId?: string): Promise<SharedItem[]> {
-  const cutoff = Date.now() - EXPIRY_MS;
-  await db.messages.where("timestamp").below(cutoff).delete();
-  let query = db.messages.where("timestamp").above(cutoff);
+  await cleanExpired();
+  let query = db.messages.where("timestamp").above(0);
   if (roomId) {
     query = query.filter((item) => item.roomId === roomId) as typeof query;
   }
@@ -41,9 +45,23 @@ export async function getRoomMessages(roomId: string): Promise<SharedItem[]> {
   return getMessages(roomId);
 }
 
-export async function clearExpired() {
-  const cutoff = Date.now() - EXPIRY_MS;
-  await db.messages.where("timestamp").below(cutoff).delete();
+export async function cleanExpired() {
+  const now = Date.now();
+  const items = await db.messages.toArray();
+  const toDelete: string[] = [];
+  for (const item of items) {
+    const ms = RETENTION_MS[item.retention as keyof typeof RETENTION_MS];
+    if (ms !== undefined && now - item.timestamp > ms) {
+      toDelete.push(item.id);
+    }
+  }
+  if (toDelete.length > 0) await db.messages.bulkDelete(toDelete);
+}
+
+export async function deleteRoomMessages(roomId: string) {
+  const items = await db.messages.where("roomId").equals(roomId).toArray();
+  const ids = items.map((i) => i.id);
+  if (ids.length > 0) await db.messages.bulkDelete(ids);
 }
 
 export async function saveAvatar(peerId: string, dataUrl: string) {

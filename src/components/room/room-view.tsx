@@ -6,6 +6,7 @@ import { PresenceList } from "@/components/room/presence-list";
 import { SharePanel } from "@/components/room/share-panel";
 import { useRoomStore } from "@/stores/room-store";
 import { useUIStore } from "@/stores/ui-store";
+import type { ItemType, Retention } from "@/types/message";
 import { useState } from "react";
 
 export function RoomView() {
@@ -15,8 +16,10 @@ export function RoomView() {
   const [selectedPeerId, setSelectedPeerId] = useState<string | null>(null);
   const targetPeer = selectedPeerId ? peers.find((p) => p.id === selectedPeerId) : null;
 
-  const handleSendText = (text: string) => shareText(text, selectedPeerId || undefined);
-  const handleSendFile = (file: File) => shareFile(file, selectedPeerId || undefined);
+  const handleSend = (text: string, type: ItemType, retention: Retention) =>
+    shareText(text, selectedPeerId || undefined, type, retention);
+  const handleSendFile = (file: File, retention: Retention) =>
+    shareFile(file, selectedPeerId || undefined, retention);
 
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
@@ -48,7 +51,7 @@ export function RoomView() {
         <div className="flex-1 overflow-y-auto">
           <SharePanel
             targetName={targetPeer?.name || null}
-            onSendText={handleSendText}
+            onSend={handleSend}
             onSendFile={handleSendFile}
           />
         </div>

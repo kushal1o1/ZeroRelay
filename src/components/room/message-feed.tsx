@@ -92,7 +92,7 @@ export function SharedFeed() {
                 <span className="text-xs font-medium text-foreground">{item.peerName}</span>
                 <span className="text-xs text-muted-foreground">{formatTime(item.timestamp)}</span>
               </div>
-              {item.type === "text" ? (
+              {item.type === "text" || item.type === "code" || item.type === "note" ? (
                 <p className="mt-1 text-sm text-foreground whitespace-pre-wrap break-words line-clamp-3">
                   {item.content}
                 </p>

@@ -10,7 +10,9 @@ import type {
   AvatarMessage,
   DataMessage,
   FileRequest,
+  ItemType,
   PeerMessage,
+  Retention,
   SharedItem,
 } from "@/types/message";
 import { useCallback, useEffect, useRef } from "react";
@@ -180,14 +182,20 @@ export function useRoom() {
   );
 
   const shareText = useCallback(
-    (content: string, targetPeerId?: string) => {
+    (
+      content: string,
+      targetPeerId?: string,
+      type: ItemType = "text",
+      retention: Retention = "session",
+    ) => {
       const state = useRoomStore.getState();
       const item: SharedItem = {
         id: generateId(),
         roomId: state.roomId || "global",
         peerId,
         peerName: state.name,
-        type: "text",
+        type,
+        retention,
         content,
         timestamp: Date.now(),
       };
@@ -197,7 +205,7 @@ export function useRoom() {
   );
 
   const shareFile = useCallback(
-    (file: File, targetPeerId?: string) => {
+    (file: File, targetPeerId?: string, retention: Retention = "forever") => {
       const state = useRoomStore.getState();
       const item: SharedItem = {
         id: generateId(),
@@ -205,6 +213,7 @@ export function useRoom() {
         peerId,
         peerName: state.name,
         type: "file",
+        retention,
         fileName: file.name,
         fileSize: file.size,
         mime: file.type,
@@ -241,8 +250,10 @@ export function useRoom() {
   );
 
   const leaveRoomWithCleanup = useCallback(() => {
+    const roomId = useRoomStore.getState().roomId;
     disconnectAll();
     leaveRoom();
+    if (roomId) useMessageStore.getState().removeRoomItems(roomId);
   }, [disconnectAll, leaveRoom]);
 
   return {
