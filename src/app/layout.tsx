@@ -1,3 +1,4 @@
+import { RoomProvider } from "@/components/room-provider";
 import type { Metadata } from "next";
 import "./globals.css";
 
@@ -23,7 +24,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           }}
         />
       </head>
-      <body className="antialiased">{children}</body>
+      <body className="antialiased">
+        <RoomProvider>{children}</RoomProvider>
+      </body>
     </html>
   );
 }
