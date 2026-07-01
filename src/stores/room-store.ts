@@ -31,15 +31,25 @@ const defaultName = (() => {
   return generated;
 })();
 
+const savedPeerId =
+  typeof localStorage !== "undefined" ? localStorage.getItem("zerorelay-peerId") : null;
+
+const initialPeerId = savedPeerId || generateId();
+if (!savedPeerId && typeof localStorage !== "undefined")
+  localStorage.setItem("zerorelay-peerId", initialPeerId);
+
 export const useRoomStore = create<RoomState>((set) => ({
-  peerId: generateId(),
+  peerId: initialPeerId,
   name: defaultName,
   roomId: null,
   peers: [],
   connected: false,
   error: null,
 
-  setPeerId: (peerId) => set({ peerId }),
+  setPeerId: (peerId) => {
+    if (typeof localStorage !== "undefined") localStorage.setItem("zerorelay-peerId", peerId);
+    set({ peerId });
+  },
   setName: (name) => {
     if (typeof localStorage !== "undefined") localStorage.setItem("zerorelay-name", name);
     set({ name });

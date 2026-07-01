@@ -63,7 +63,9 @@ function FileRow({ item }: { item: SharedItem }) {
 export function SharedFeed() {
   const { items } = useStorage();
   const activeRoomId = useUIStore((s) => s.activeRoomId);
-  const roomItems = activeRoomId ? items.filter((i) => i.roomId === activeRoomId) : items;
+  const roomItems = (activeRoomId ? items.filter((i) => i.roomId === activeRoomId) : items)
+    .slice()
+    .sort((a, b) => b.timestamp - a.timestamp);
 
   if (roomItems.length === 0) {
     return (
@@ -84,7 +86,7 @@ export function SharedFeed() {
             key={item.id}
             className="flex items-start gap-3 rounded-lg border border-border bg-card p-3"
           >
-            <Avatar name={item.peerName} size="sm" />
+            <Avatar name={item.peerName} peerId={item.peerId} size="sm" />
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2">
                 <span className="text-xs font-medium text-foreground">{item.peerName}</span>

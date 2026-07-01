@@ -6,6 +6,7 @@ import { Avatar } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { useAvatarStore } from "@/stores/avatar-store";
 import { useRoomStore } from "@/stores/room-store";
 import { useRef, useState } from "react";
 
@@ -39,20 +40,22 @@ export function PresenceList({ selectedPeerId, onSelectPeer }: PresenceListProps
 
   const openProfile = () => {
     setEditName(myName);
-    setEditAvatar(null);
+    setEditAvatar(useAvatarStore.getState().map[myPeerId] || null);
     setProfileOpen(true);
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || file.size > 500 * 1024) return;
-    readFileAsDataURL(file).then(setEditAvatar);
+    readFileAsDataURL(file).then((dataUrl) => {
+      setEditAvatar(dataUrl);
+      updateAvatar(dataUrl);
+    });
     e.target.value = "";
   };
 
   const handleSave = () => {
     if (editName.trim() && editName.trim() !== myName) rename(editName.trim());
-    if (editAvatar) updateAvatar(editAvatar);
     setProfileOpen(false);
   };
 
