@@ -1,5 +1,4 @@
 "use client";
-
 import { ConnectionStatus } from "@/components/connection-status";
 import { SharedFeed } from "@/components/room/message-feed";
 import { PresenceList } from "@/components/room/presence-list";
@@ -13,8 +12,8 @@ import { useState } from "react";
 export function RoomView() {
   const { peers, connected, error, peerId } = useRoomStore();
   const { activeRoomId } = useUIStore();
+  const { shareItem } = useRoom();
   const [selectedPeerId, setSelectedPeerId] = useState<string | null>(null);
-
   const targetPeer = selectedPeerId ? peers.find((p) => p.id === selectedPeerId) : null;
 
   const handleSendText = (text: string) => {
@@ -26,8 +25,7 @@ export function RoomView() {
       content: text,
       timestamp: Date.now(),
     };
-    const msg = { type: "share" as const, item, targetPeerId: selectedPeerId || undefined };
-    console.log("Send:", msg);
+    shareItem(item, selectedPeerId || undefined);
   };
 
   const handleSendFile = (file: File) => {
@@ -41,8 +39,7 @@ export function RoomView() {
       mime: file.type,
       timestamp: Date.now(),
     };
-    const msg = { type: "share" as const, item, targetPeerId: selectedPeerId || undefined };
-    console.log("Send:", msg);
+    shareItem(item, selectedPeerId || undefined);
   };
 
   return (
@@ -62,13 +59,11 @@ export function RoomView() {
         </div>
         <ConnectionStatus />
       </header>
-
       {error && (
         <div className="mx-6 mt-4 rounded-lg bg-destructive/10 px-4 py-3 text-sm text-destructive">
           {error}
         </div>
       )}
-
       <div className="flex flex-1 gap-6 overflow-hidden p-6">
         <div className="w-72 shrink-0 overflow-y-auto space-y-6">
           <PresenceList selectedPeerId={selectedPeerId} onSelectPeer={setSelectedPeerId} />

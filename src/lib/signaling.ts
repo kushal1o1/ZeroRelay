@@ -8,6 +8,7 @@ export class SignalingClient {
   private listeners = new Set<Listener>();
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private _connected = false;
+  private onDisconnect: (() => void) | null = null;
 
   constructor(url: string) {
     this.url = url;
@@ -40,6 +41,7 @@ export class SignalingClient {
 
     this.ws.onclose = () => {
       this._connected = false;
+      this.onDisconnect?.();
       this.scheduleReconnect();
     };
 
@@ -65,6 +67,10 @@ export class SignalingClient {
   onMessage(listener: Listener) {
     this.listeners.add(listener);
     return () => this.listeners.delete(listener);
+  }
+
+  setOnDisconnect(cb: () => void) {
+    this.onDisconnect = cb;
   }
 
   private scheduleReconnect() {

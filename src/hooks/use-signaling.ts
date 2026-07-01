@@ -33,6 +33,12 @@ export function useSignaling(onMessage?: MessageHandler) {
   useEffect(() => {
     const client = clientRef.current;
 
+    client.setOnDisconnect(() => {
+      const s = useRoomStore.getState();
+      s.setConnected(false);
+      s.setError("Connection lost. Reconnecting...");
+    });
+
     const unsub = client.onMessage((msg) => {
       const state = useRoomStore.getState();
       switch (msg.type) {
