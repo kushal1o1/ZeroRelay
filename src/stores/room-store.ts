@@ -33,7 +33,10 @@ export const useRoomStore = create<RoomState>((set) => ({
   error: null,
 
   setPeerId: (peerId) => set({ peerId }),
-  setName: (name) => set({ name }),
+  setName: (name) => {
+    if (typeof localStorage !== "undefined") localStorage.setItem("zerorelay-name", name);
+    set({ name });
+  },
   setRoomId: (roomId) => set({ roomId }),
   setPeers: (peers) => set({ peers }),
   setConnected: (connected) => set({ connected }),

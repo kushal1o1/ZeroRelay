@@ -29,3 +29,6 @@ export interface FileChunk {
   total: number;
   data: string; // base64 encoded chunk
 }
+
+// Anything that can arrive over a peer data channel.
+export type PeerMessage = DataMessage | FileRequest | FileChunk;
