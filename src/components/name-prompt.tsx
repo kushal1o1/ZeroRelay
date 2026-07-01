@@ -16,7 +16,6 @@ export function NamePrompt() {
     e.preventDefault();
     const final = input.trim() || `User-${Math.random().toString(36).slice(2, 6)}`;
     setName(final);
-    localStorage.setItem("zerorelay-name", final);
   };
 
   return (

@@ -1,15 +1,15 @@
 "use client";
 
+import { useRoomContext } from "@/components/room-provider";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { useRoom } from "@/hooks/use-room";
 import { useUIStore } from "@/stores/ui-store";
 import { useState } from "react";
 
 export function CreateRoomDialog() {
   const { dialog, setDialog, addRoom } = useUIStore();
-  const { joinRoom } = useRoom();
+  const { joinRoom } = useRoomContext();
   const [name, setName] = useState("");
   const [password, setPassword] = useState("");
 
