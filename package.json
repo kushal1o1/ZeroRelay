@@ -1,0 +1,40 @@
+{
+  "name": "zerorelay",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "dev:worker": "npm run dev --prefix workers/signaling",
+    "dev:lan": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "biome check --write src/",
+    "lint:worker": "npm run typecheck --prefix workers/signaling",
+    "format": "biome format --write src/",
+    "typecheck": "tsc --noEmit",
+    "check": "npm run typecheck && npm run lint && npm run build",
+    "prepare": "husky"
+  },
+  "dependencies": {
+    "next": "^15.3.1",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "zustand": "^5.0.5",
+    "dexie": "^4.0.11"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^1.9.4",
+    "@types/node": "^22.15.3",
+    "@types/react": "^19.1.2",
+    "@types/react-dom": "^19.1.2",
+    "husky": "^9.1.7",
+    "lint-staged": "^15.5.1",
+    "tailwindcss": "^4.1.6",
+    "typescript": "^5.8.3"
+  },
+  "lint-staged": {
+    "*.{ts,tsx}": [
+      "biome check --write"
+    ]
+  }
+}
