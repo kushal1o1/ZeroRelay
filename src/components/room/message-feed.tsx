@@ -1,7 +1,11 @@
 "use client";
 
+import { useRoomContext } from "@/components/room-provider";
 import { Avatar } from "@/components/ui/avatar";
 import { useStorage } from "@/hooks/use-storage";
+import { useMessageStore } from "@/stores/message-store";
+import { useRoomStore } from "@/stores/room-store";
+import type { SharedItem } from "@/types/message";
 
 function formatTime(ts: number) {
   return new Date(ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
@@ -11,6 +15,48 @@ function formatSize(bytes: number) {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function FileRow({ item }: { item: SharedItem }) {
+  const { requestFile } = useRoomContext();
+  const myPeerId = useRoomStore((s) => s.peerId);
+  const pct = useMessageStore((s) => s.progress[item.id]);
+  const mine = item.peerId === myPeerId;
+
+  return (
+    <div className="mt-1 space-y-1">
+      <div className="flex items-center gap-2 text-sm text-accent">
+        <svg
+          aria-hidden="true"
+          width="14"
+          height="14"
+          viewBox="0 0 14 14"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.5"
+        >
+          <path d="M7 1v8M3 5l4 4 4-4M1 11v2h12v-2" />
+        </svg>
+        <span className="truncate">{item.fileName}</span>
+        <span className="text-muted-foreground">({formatSize(item.fileSize || 0)})</span>
+      </div>
+      {mine ? (
+        <span className="text-[10px] text-muted-foreground">Sent</span>
+      ) : pct === undefined ? (
+        <button
+          type="button"
+          onClick={() => requestFile(item)}
+          className="rounded-md bg-accent px-2 py-0.5 text-[10px] font-medium text-accent-foreground transition-opacity hover:opacity-90"
+        >
+          Download
+        </button>
+      ) : pct >= 1 ? (
+        <span className="text-[10px] text-accent">Saved ✓</span>
+      ) : (
+        <span className="text-[10px] text-muted-foreground">{Math.round(pct * 100)}%</span>
+      )}
+    </div>
+  );
 }
 
 export function SharedFeed() {
@@ -46,21 +92,7 @@ export function SharedFeed() {
                   {item.content}
                 </p>
               ) : (
-                <div className="mt-1 flex items-center gap-2 text-sm text-accent">
-                  <svg
-                    aria-hidden="true"
-                    width="14"
-                    height="14"
-                    viewBox="0 0 14 14"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.5"
-                  >
-                    <path d="M7 1v8M3 5l4 4 4-4M1 11v2h12v-2" />
-                  </svg>
-                  <span className="truncate">{item.fileName}</span>
-                  <span className="text-muted-foreground">({formatSize(item.fileSize || 0)})</span>
-                </div>
+                <FileRow item={item} />
               )}
             </div>
           </div>
