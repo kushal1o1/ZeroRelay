@@ -9,12 +9,13 @@ export function useWebRTC(
   peerId: string,
   sendSignaling: (msg: ClientMessage) => void,
   onData: DataHandler,
+  onChannelOpen?: (peerId: string) => void,
 ) {
   const connectionsRef = useRef<Map<string, RTCPeerConnection>>(new Map());
   const channelsRef = useRef<Map<string, RTCDataChannel>>(new Map());
   const pendingIceRef = useRef<Map<string, RTCIceCandidateInit[]>>(new Map());
-  const handlersRef = useRef({ onData, sendSignaling });
-  handlersRef.current = { onData, sendSignaling };
+  const handlersRef = useRef({ onData, sendSignaling, onChannelOpen });
+  handlersRef.current = { onData, sendSignaling, onChannelOpen };
 
   // Recovery bookkeeping (Fix 4/5). Refs break the mutual reference between
   // createConnection's event handlers and the initiate/restart callbacks.
@@ -55,6 +56,9 @@ export function useWebRTC(
     channelsRef.current.set(targetId, channel);
     channel.onmessage = (e) => {
       handlersRef.current.onData(targetId, e.data);
+    };
+    channel.onopen = () => {
+      handlersRef.current.onChannelOpen?.(targetId);
     };
     channel.onclose = () => {
       // Avoid holding a reference to a dead channel.

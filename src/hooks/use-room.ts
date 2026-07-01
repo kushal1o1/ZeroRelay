@@ -3,9 +3,16 @@ import { useSignaling } from "@/hooks/use-signaling";
 import { useWebRTC } from "@/hooks/use-webrtc";
 import { type Incoming, applyChunk, sendFileInChunks, triggerDownload } from "@/lib/file-transfer";
 import { generateId } from "@/lib/id";
+import { useAvatarStore } from "@/stores/avatar-store";
 import { useMessageStore } from "@/stores/message-store";
 import { useRoomStore } from "@/stores/room-store";
-import type { DataMessage, FileRequest, PeerMessage, SharedItem } from "@/types/message";
+import type {
+  AvatarMessage,
+  DataMessage,
+  FileRequest,
+  PeerMessage,
+  SharedItem,
+} from "@/types/message";
 import { useCallback, useEffect, useRef } from "react";
 import type { SDP, ServerMessage } from "../../shared/types";
 
@@ -58,6 +65,9 @@ export function useRoom() {
         }
         break;
       }
+      case "avatar":
+        useAvatarStore.getState().setAvatar(fromPeerId, msg.dataUrl);
+        break;
       default:
         console.warn("Received unknown peer message", msg);
     }
@@ -93,6 +103,19 @@ export function useRoom() {
 
   const { joinRoom, leaveRoom, rename, sendSignaling } = useSignaling(msgHandler);
 
+  // Defined before useWebRTC to break the circular dep — reads sendToPeer
+  // from rtcRef, which is wired up right after useWebRTC returns.
+  const onChannelOpen = useCallback(
+    (targetPeerId: string) => {
+      const myAvatar = useAvatarStore.getState().map[peerId];
+      if (myAvatar) {
+        const msg: AvatarMessage = { type: "avatar", dataUrl: myAvatar };
+        rtcRef.current.sendToPeer(targetPeerId, JSON.stringify(msg));
+      }
+    },
+    [peerId],
+  );
+
   const {
     connectToPeer,
     disconnectFromPeer,
@@ -103,7 +126,7 @@ export function useRoom() {
     sendToPeer,
     broadcast,
     bufferedAmount,
-  } = useWebRTC(peerId, sendSignaling, onData);
+  } = useWebRTC(peerId, sendSignaling, onData, onChannelOpen);
 
   // Set refs so msgHandler / onData always use the latest functions.
   webrtcRef.current = { handleOffer, handleAnswer, handleIceCandidate };
@@ -208,6 +231,15 @@ export function useRoom() {
     [sendToPeer],
   );
 
+  const updateAvatar = useCallback(
+    (dataUrl: string) => {
+      useAvatarStore.getState().setAvatar(peerId, dataUrl);
+      const msg: AvatarMessage = { type: "avatar", dataUrl };
+      broadcast(JSON.stringify(msg));
+    },
+    [peerId, broadcast],
+  );
+
   const leaveRoomWithCleanup = useCallback(() => {
     disconnectAll();
     leaveRoom();
@@ -222,5 +254,6 @@ export function useRoom() {
     shareText,
     shareFile,
     requestFile,
+    updateAvatar,
   };
 }

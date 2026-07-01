@@ -31,5 +31,10 @@ export interface FileChunk {
   data: string; // base64 encoded chunk
 }
 
+export interface AvatarMessage {
+  type: "avatar";
+  dataUrl: string;
+}
+
 // Anything that can arrive over a peer data channel.
-export type PeerMessage = DataMessage | FileRequest | FileChunk;
+export type PeerMessage = DataMessage | FileRequest | FileChunk | AvatarMessage;

@@ -24,9 +24,16 @@ interface RoomState {
 const savedName =
   typeof localStorage !== "undefined" ? localStorage.getItem("zerorelay-name") : null;
 
+const defaultName = (() => {
+  if (savedName) return savedName;
+  const generated = `User-${Math.random().toString(36).slice(2, 6)}`;
+  if (typeof localStorage !== "undefined") localStorage.setItem("zerorelay-name", generated);
+  return generated;
+})();
+
 export const useRoomStore = create<RoomState>((set) => ({
   peerId: generateId(),
-  name: savedName || "Anonymous",
+  name: defaultName,
   roomId: null,
   peers: [],
   connected: false,
