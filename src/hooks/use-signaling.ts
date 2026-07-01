@@ -7,9 +7,12 @@ import type { ClientMessage, ServerMessage } from "../../shared/types";
 
 function resolveUrl(): string {
   const env = process.env.NEXT_PUBLIC_SIGNALING_URL;
-  if (env && !env.includes("localhost") && !env.includes("127.0.0.1")) return env;
+  if (env) return env;
   if (typeof window !== "undefined") {
-    return `ws://${window.location.hostname}:8787/api/ws`;
+    // Match the page's security context: an HTTPS page cannot open an
+    // insecure ws:// socket (mixed content), so use wss:// there.
+    const proto = window.location.protocol === "https:" ? "wss" : "ws";
+    return `${proto}://${window.location.hostname}:8787/api/ws`;
   }
   return "ws://localhost:8787/api/ws";
 }
