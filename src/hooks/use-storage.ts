@@ -1,25 +1,26 @@
 "use client";
 
-import { clearExpired, db, getMessages, saveMessage } from "@/lib/db";
-import type { SharedItem } from "@/types/message";
-import { useCallback, useEffect, useState } from "react";
+import { useMessageStore } from "@/stores/message-store";
+import { useEffect } from "react";
 
+/**
+ * Thin view over the shared message store. Every caller reads the same items
+ * and the same addItem action, so a write from anywhere is reflected everywhere.
+ */
 export function useStorage() {
-  const [items, setItems] = useState<SharedItem[]>([]);
+  const items = useMessageStore((s) => s.items);
+  const addItem = useMessageStore((s) => s.addItem);
+  const load = useMessageStore((s) => s.load);
+  const refresh = useMessageStore((s) => s.refresh);
 
   useEffect(() => {
-    getMessages().then(setItems);
-  }, []);
-
-  const addItem = useCallback(async (item: SharedItem) => {
-    await saveMessage(item);
-    setItems((prev) => [item, ...prev]);
-  }, []);
+    load();
+  }, [load]);
 
   useEffect(() => {
-    const interval = setInterval(clearExpired, 60_000);
+    const interval = setInterval(refresh, 60_000);
     return () => clearInterval(interval);
-  }, []);
+  }, [refresh]);
 
   return { items, addItem };
 }

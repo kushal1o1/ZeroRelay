@@ -1,38 +1,69 @@
 "use client";
 import { useSignaling } from "@/hooks/use-signaling";
-import { useStorage } from "@/hooks/use-storage";
 import { useWebRTC } from "@/hooks/use-webrtc";
+import { type Incoming, applyChunk, sendFileInChunks, triggerDownload } from "@/lib/file-transfer";
+import { generateId } from "@/lib/id";
+import { useMessageStore } from "@/stores/message-store";
 import { useRoomStore } from "@/stores/room-store";
-import type { DataMessage, SharedItem } from "@/types/message";
+import type { DataMessage, FileRequest, PeerMessage, SharedItem } from "@/types/message";
 import { useCallback, useEffect, useRef } from "react";
 import type { SDP, ServerMessage } from "../../shared/types";
 
 export function useRoom() {
   const peerId = useRoomStore((s) => s.peerId);
-  const { addItem } = useStorage();
 
-  // Keep a ref to addItem so onData (created once) always calls the latest
-  // version without needing to be recreated itself.
-  const addItemRef = useRef(addItem);
-  addItemRef.current = addItem;
+  // Files we've offered (sharedItemId -> File) so we can serve bytes on request.
+  const outgoingFilesRef = useRef<Map<string, File>>(new Map());
+  // In-progress incoming file reassembly (sharedItemId -> buffer/state).
+  const incomingRef = useRef<Map<string, Incoming>>(new Map());
+  // WebRTC send fns, filled after useWebRTC — breaks the onData<->send cycle.
+  const rtcRef = useRef<{
+    sendToPeer: (peerId: string, data: string) => boolean;
+    bufferedAmount: (peerId: string) => number;
+  }>({ sendToPeer: () => false, bufferedAmount: () => 0 });
 
-  // Parse incoming data-channel payloads and persist any "share" items.
-  const onData = useCallback((_peerId: string, data: string) => {
-    let msg: DataMessage;
+  // Parse incoming data-channel payloads: share items + file-transfer control.
+  const onData = useCallback((fromPeerId: string, data: string) => {
+    let msg: PeerMessage;
     try {
       msg = JSON.parse(data);
     } catch (err) {
       console.warn("Received malformed peer message", err);
       return;
     }
-    if (msg?.type === "share" && msg.item) {
-      addItemRef.current(msg.item);
-    } else {
-      console.warn("Received unknown peer message type", msg);
+    const store = useMessageStore.getState();
+    switch (msg?.type) {
+      case "share":
+        store.addItem(msg.item);
+        break;
+      case "file-request": {
+        const file = outgoingFilesRef.current.get(msg.sharedItemId);
+        if (file) {
+          sendFileInChunks(
+            file,
+            msg.sharedItemId,
+            fromPeerId,
+            rtcRef.current.sendToPeer,
+            rtcRef.current.bufferedAmount,
+          ).catch((err) => console.warn("File send failed", err));
+        }
+        break;
+      }
+      case "file-chunk": {
+        const { entry, done } = applyChunk(incomingRef.current, msg);
+        store.setProgress(msg.sharedItemId, entry.total > 0 ? entry.received / entry.total : 1);
+        if (done) {
+          const item = store.items.find((i) => i.id === msg.sharedItemId);
+          triggerDownload(item?.fileName || "download", item?.mime || "", entry.buf);
+        }
+        break;
+      }
+      default:
+        console.warn("Received unknown peer message", msg);
     }
   }, []);
 
-  // Webrtc refs — set after useWebRTC is called
+  // Webrtc refs — set after useWebRTC is called.
   const webrtcRef = useRef<{
     handleOffer: (from: string, sdp: SDP) => Promise<void>;
     handleAnswer: (from: string, sdp: SDP) => Promise<void>;
@@ -71,12 +102,14 @@ export function useRoom() {
     handleIceCandidate,
     sendToPeer,
     broadcast,
+    bufferedAmount,
   } = useWebRTC(peerId, sendSignaling, onData);
 
-  // Set refs so msgHandler uses latest functions
+  // Set refs so msgHandler / onData always use the latest functions.
   webrtcRef.current = { handleOffer, handleAnswer, handleIceCandidate };
+  rtcRef.current = { sendToPeer, bufferedAmount };
 
-  // When room state changes, connect/disconnect WebRTC peers
+  // When room state changes, connect/disconnect WebRTC peers.
   useEffect(() => {
     const unsub = useRoomStore.subscribe((state, prev) => {
       if (!state.connected && prev.connected) {
@@ -107,32 +140,68 @@ export function useRoom() {
     return unsub;
   }, [connectToPeer, disconnectFromPeer, disconnectAll]);
 
-  // Share an item with either a specific peer or everyone connected.
-  // Also saves it into local storage so the sender's own feed shows it
-  // immediately (matches SharedFeed reading from useStorage()).
-  const shareItem = useCallback(
+  // Send a share to a specific peer or everyone, and echo it into the local
+  // feed so the sender sees it immediately (even if no peer is connected yet).
+  const dispatchShare = useCallback(
     (item: SharedItem, targetPeerId?: string): boolean => {
       const msg: DataMessage = { type: "share", item, targetPeerId };
       const payload = JSON.stringify(msg);
-
-      let delivered: boolean;
-      if (targetPeerId) {
-        delivered = sendToPeer(targetPeerId, payload);
-      } else {
-        const sentTo = broadcast(payload);
-        delivered = sentTo.length > 0;
-      }
-
-      // Persist locally regardless of delivery so the sender sees their
-      // own share in the feed even if no peers are currently connected.
-      addItemRef.current(item);
-
-      if (!delivered) {
-        console.warn("Share was not delivered to any peer (no open data channel yet)");
-      }
+      const delivered = targetPeerId
+        ? sendToPeer(targetPeerId, payload)
+        : broadcast(payload).length > 0;
+      useMessageStore.getState().addItem(item);
+      if (!delivered) console.warn("Share not delivered (no open data channel yet)");
       return delivered;
     },
     [sendToPeer, broadcast],
+  );
+
+  const shareText = useCallback(
+    (content: string, targetPeerId?: string) => {
+      const item: SharedItem = {
+        id: generateId(),
+        peerId,
+        peerName: useRoomStore.getState().name,
+        type: "text",
+        content,
+        timestamp: Date.now(),
+      };
+      dispatchShare(item, targetPeerId);
+    },
+    [peerId, dispatchShare],
+  );
+
+  const shareFile = useCallback(
+    (file: File, targetPeerId?: string) => {
+      const item: SharedItem = {
+        id: generateId(),
+        peerId,
+        peerName: useRoomStore.getState().name,
+        type: "file",
+        fileName: file.name,
+        fileSize: file.size,
+        mime: file.type,
+        timestamp: Date.now(),
+      };
+      // Keep the File around so we can stream its bytes when a peer requests it.
+      outgoingFilesRef.current.set(item.id, file);
+      dispatchShare(item, targetPeerId);
+    },
+    [peerId, dispatchShare],
+  );
+
+  // Receiver: ask the owner peer to stream a file's bytes; onData handles the
+  // incoming chunks and triggers the browser download on completion.
+  const requestFile = useCallback(
+    (item: SharedItem) => {
+      if (item.type !== "file") return;
+      const req: FileRequest = { type: "file-request", sharedItemId: item.id };
+      useMessageStore.getState().setProgress(item.id, 0);
+      if (!sendToPeer(item.peerId, JSON.stringify(req))) {
+        console.warn("Cannot request file: no open channel to owner");
+      }
+    },
+    [sendToPeer],
   );
 
   const leaveRoomWithCleanup = useCallback(() => {
@@ -146,6 +215,8 @@ export function useRoom() {
     rename,
     sendSignaling,
     disconnectAll,
-    shareItem,
+    shareText,
+    shareFile,
+    requestFile,
   };
 }

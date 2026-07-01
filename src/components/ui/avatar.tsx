@@ -1,3 +1,5 @@
+import { hashString } from "@/lib/hash";
+
 interface AvatarProps {
   name: string;
   size?: "sm" | "md" | "lg";
@@ -17,11 +19,7 @@ const colors = [
 ];
 
 function hashColor(name: string) {
-  let hash = 0;
-  for (let i = 0; i < name.length; i++) {
-    hash = name.charCodeAt(i) + ((hash << 5) - hash);
-  }
-  return colors[Math.abs(hash) % colors.length];
+  return colors[hashString(name) % colors.length];
 }
 
 export function Avatar({ name, size = "md" }: AvatarProps) {

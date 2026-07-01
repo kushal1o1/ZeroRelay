@@ -55,11 +55,6 @@ export class RoomDO implements DurableObject {
   }
 
   private handleJoin(ws: WebSocket, msg: ClientMessage & { type: "join" }) {
-    if (this.connections.has(msg.peerId)) {
-      this.send(ws, { type: "error", message: "Peer ID already taken" });
-      return;
-    }
-
     if (this.password && msg.password !== this.password) {
       this.send(ws, { type: "error", message: "Invalid password" });
       return;
@@ -67,6 +62,19 @@ export class RoomDO implements DurableObject {
 
     if (this.connections.size === 0 && msg.password) {
       this.password = msg.password;
+    }
+
+    // Reconnect / takeover: if this peer id already has a (stale) socket,
+    // drop it and let the new socket replace it rather than rejecting the
+    // rejoin with "Peer ID already taken".
+    const existing = this.connections.get(msg.peerId);
+    if (existing && existing.ws !== ws) {
+      try {
+        existing.ws.close();
+      } catch {
+        /* already closed */
+      }
+      this.connections.delete(msg.peerId);
     }
 
     const peer: Peer = { id: msg.peerId, name: msg.name, joinedAt: Date.now() };

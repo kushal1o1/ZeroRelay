@@ -5,28 +5,6 @@ import type { ClientMessage, SDP } from "../../shared/types";
 
 type DataHandler = (peerId: string, data: string) => void;
 
-// Wait for ICE gathering to finish, with a safety timeout so a stalled
-// gathering process (e.g. no usable candidates) can't hang the offer/answer
-// forever. Uses addEventListener so it never clobbers other listeners on
-// the same RTCPeerConnection.
-function waitForGathering(pc: RTCPeerConnection, timeoutMs = 3000): Promise<void> {
-  if (pc.iceGatheringState === "complete") return Promise.resolve();
-  return new Promise((resolve) => {
-    let settled = false;
-    const done = () => {
-      if (settled) return;
-      settled = true;
-      pc.removeEventListener("icegatheringstatechange", onChange);
-      resolve();
-    };
-    const onChange = () => {
-      if (pc.iceGatheringState === "complete") done();
-    };
-    pc.addEventListener("icegatheringstatechange", onChange);
-    setTimeout(done, timeoutMs);
-  });
-}
-
 export function useWebRTC(
   peerId: string,
   sendSignaling: (msg: ClientMessage) => void,
@@ -37,6 +15,12 @@ export function useWebRTC(
   const pendingIceRef = useRef<Map<string, RTCIceCandidateInit[]>>(new Map());
   const handlersRef = useRef({ onData, sendSignaling });
   handlersRef.current = { onData, sendSignaling };
+
+  // Recovery bookkeeping (Fix 4/5). Refs break the mutual reference between
+  // createConnection's event handlers and the initiate/restart callbacks.
+  const redialRef = useRef<Map<string, number>>(new Map());
+  const initiateRef = useRef<(targetId: string) => void>(() => {});
+  const restartRef = useRef<(targetId: string) => void>(() => {});
 
   const config: RTCConfiguration = {
     iceServers: [
@@ -110,22 +94,44 @@ export function useWebRTC(
         handleDataChannel(targetId, e.channel);
       };
 
+      // Fix 4: on ICE failure the *initiator* drives an in-place ICE restart
+      // (a fresh offer with iceRestart), which recovers the link while keeping
+      // the existing data channel alive.
       pc.oniceconnectionstatechange = () => {
-        if (pc.iceConnectionState === "failed") {
-          console.warn(`ICE failed for peer ${targetId}`);
-          // Attempt an ICE restart rather than leaving the connection dead.
-          if (pc.signalingState === "stable") {
-            pc.restartIce();
-          }
+        if (pc.iceConnectionState === "failed" && peerId < targetId) {
+          restartRef.current(targetId);
         }
       };
 
+      // Fix 5: a terminal connection failure tears the peer down and — if it's
+      // still present — the initiator redials a fresh connection (capped, with
+      // backoff). A clean "closed" only cleans up; "connected" clears the
+      // redial counter.
       pc.onconnectionstatechange = () => {
-        if (pc.connectionState === "closed" || pc.connectionState === "failed") {
-          connectionsRef.current.delete(targetId);
-          channelsRef.current.delete(targetId);
-          pendingIceRef.current.delete(targetId);
+        const st = pc.connectionState;
+        if (st === "connected") {
+          redialRef.current.delete(targetId);
+          return;
         }
+        if (st !== "failed" && st !== "closed") return;
+
+        connectionsRef.current.delete(targetId);
+        channelsRef.current.delete(targetId);
+        pendingIceRef.current.delete(targetId);
+
+        if (st !== "failed" || peerId >= targetId) return;
+        const present = useRoomStore.getState().peers.some((p) => p.id === targetId);
+        const attempts = redialRef.current.get(targetId) ?? 0;
+        if (!present || attempts >= 3) return;
+        redialRef.current.set(targetId, attempts + 1);
+        setTimeout(
+          () => {
+            if (useRoomStore.getState().peers.some((p) => p.id === targetId)) {
+              initiateRef.current(targetId);
+            }
+          },
+          1000 * (attempts + 1),
+        );
       };
 
       return pc;
@@ -142,14 +148,16 @@ export function useWebRTC(
         handleDataChannel(targetId, channel);
         const offer = await pc.createOffer();
         await pc.setLocalDescription(offer);
-        await waitForGathering(pc);
-        const local = pc.localDescription!;
+        // Trickle ICE: send the offer immediately; candidates follow via
+        // onicecandidate (no more up-to-3s gathering wait).
+        const local = pc.localDescription;
+        if (!local) return;
         handlersRef.current.sendSignaling({
           type: "offer",
           roomId: useRoomStore.getState().roomId || "",
           from: peerId,
           to: targetId,
-          sdp: { type: local.type || "offer", sdp: local.sdp || "" },
+          sdp: { type: local.type, sdp: local.sdp },
         });
       } catch (err) {
         console.error(`Failed to initiate connection to ${targetId}`, err);
@@ -159,6 +167,34 @@ export function useWebRTC(
     },
     [peerId, createConnection, handleDataChannel],
   );
+
+  // Fix 4: in-place ICE restart on the existing connection (initiator side).
+  const restartConnection = useCallback(
+    async (targetId: string) => {
+      const pc = connectionsRef.current.get(targetId);
+      if (!pc || pc.signalingState !== "stable") return;
+      try {
+        const offer = await pc.createOffer({ iceRestart: true });
+        await pc.setLocalDescription(offer);
+        const local = pc.localDescription;
+        if (!local) return;
+        handlersRef.current.sendSignaling({
+          type: "offer",
+          roomId: useRoomStore.getState().roomId || "",
+          from: peerId,
+          to: targetId,
+          sdp: { type: local.type, sdp: local.sdp },
+        });
+      } catch (err) {
+        console.warn(`ICE restart failed for ${targetId}`, err);
+      }
+    },
+    [peerId],
+  );
+
+  // Wire the recovery refs now that the callbacks exist (Fix 4/5).
+  initiateRef.current = initiateConnection;
+  restartRef.current = restartConnection;
 
   const handleOffer = useCallback(
     async (from: string, sdp: SDP) => {
@@ -192,14 +228,14 @@ export function useWebRTC(
         flushPendingIce(from);
         const answerDesc = await pc.createAnswer();
         await pc.setLocalDescription(answerDesc);
-        await waitForGathering(pc);
-        const local = pc.localDescription!;
+        const local = pc.localDescription;
+        if (!local) return;
         handlersRef.current.sendSignaling({
           type: "answer",
           roomId: useRoomStore.getState().roomId || "",
           from: peerId,
           to: from,
-          sdp: { type: local.type || "answer", sdp: local.sdp || "" },
+          sdp: { type: local.type, sdp: local.sdp },
         });
       } catch (err) {
         console.error(`Failed to handle offer from ${from}`, err);
@@ -301,6 +337,12 @@ export function useWebRTC(
     }
   }, []);
 
+  // Current outbound buffer for a peer's channel — used to apply backpressure
+  // while streaming file chunks (Fix 6).
+  const bufferedAmount = useCallback((targetId: string): number => {
+    return channelsRef.current.get(targetId)?.bufferedAmount ?? 0;
+  }, []);
+
   // Send a string payload to every connected peer. Returns the list of
   // peer ids the send actually succeeded for.
   const broadcast = useCallback((data: string): string[] => {
@@ -334,5 +376,6 @@ export function useWebRTC(
     handleIceCandidate,
     sendToPeer,
     broadcast,
+    bufferedAmount,
   };
 }

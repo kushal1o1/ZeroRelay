@@ -20,10 +20,7 @@ export function PresenceList({ selectedPeerId, onSelectPeer }: PresenceListProps
 
   const handleRename = () => {
     const next = prompt("Enter new name:", myName);
-    if (next?.trim()) {
-      setName(next.trim());
-      localStorage.setItem("zerorelay-name", next.trim());
-    }
+    if (next?.trim()) setName(next.trim());
   };
 
   return (
