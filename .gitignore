@@ -5,6 +5,7 @@
 /.pnp
 .pnp.js
 workers/signaling/node_modules/ 
+workers/signaling/.wrangler/
 
 # testing
 /coverage
