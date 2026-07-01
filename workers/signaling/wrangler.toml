@@ -1,0 +1,11 @@
+name = "zerorelay-signaling"
+main = "src/index.ts"
+compatibility_date = "2025-12-01"
+
+[[durable_objects.bindings]]
+name = "ROOM_DO"
+class_name = "RoomDO"
+
+[[migrations]]
+tag = "v1"
+new_classes = ["RoomDO"]
