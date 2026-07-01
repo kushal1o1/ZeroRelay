@@ -41,10 +41,6 @@ export async function getMessages(roomId?: string): Promise<SharedItem[]> {
   return query.toArray();
 }
 
-export async function getRoomMessages(roomId: string): Promise<SharedItem[]> {
-  return getMessages(roomId);
-}
-
 export async function cleanExpired() {
   const now = Date.now();
   const items = await db.messages.toArray();

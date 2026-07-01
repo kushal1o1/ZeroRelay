@@ -33,8 +33,9 @@ export const useMessageStore = create<MessageState>((set, get) => ({
 
   refresh: async () => {
     await cleanExpired();
-    const items = await getMessages();
-    set({ items });
+    const fromDb = await getMessages();
+    const sessionItems = get().items.filter((i) => i.retention === "session");
+    set({ items: [...sessionItems, ...fromDb] });
   },
 
   addItem: async (item) => {

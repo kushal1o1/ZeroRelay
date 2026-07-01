@@ -19,10 +19,6 @@ export class SignalingClient {
     this.url = url;
   }
 
-  get connected() {
-    return this._connected;
-  }
-
   connect() {
     if (this.ws?.readyState === WebSocket.OPEN || this.ws?.readyState === WebSocket.CONNECTING)
       return;
@@ -76,17 +72,8 @@ export class SignalingClient {
    *  lastJoin is cleared so a stale room join isn't replayed; the caller
    *  must send a fresh join message after reconnecting. */
   reconnect(url: string) {
+    this.disconnect();
     this.url = url;
-    if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
-    this.reconnectTimer = null;
-    this.lastJoin = null;
-    // Fire disconnect *synchronously* so callers (useRoom subscription) tear
-    // down WebRTC etc. before the new WS opens.  The old WS's own onclose
-    // will fire later but is ignored by the wsGen guard.
-    this.onDisconnect?.();
-    this.ws?.close();
-    this.ws = null;
-    this._connected = false;
     this.connect();
   }
 

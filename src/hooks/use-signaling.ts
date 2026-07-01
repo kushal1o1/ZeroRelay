@@ -91,6 +91,7 @@ export function useSignaling(onMessage?: MessageHandler) {
 
     return () => {
       unsub();
+      client.disconnect();
     };
   }, []);
 

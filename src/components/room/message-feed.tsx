@@ -3,6 +3,7 @@
 import { useRoomContext } from "@/components/room-provider";
 import { Avatar } from "@/components/ui/avatar";
 import { useStorage } from "@/hooks/use-storage";
+import { formatSize } from "@/lib/format";
 import { useMessageStore } from "@/stores/message-store";
 import { useRoomStore } from "@/stores/room-store";
 import { useUIStore } from "@/stores/ui-store";
@@ -10,12 +11,6 @@ import type { SharedItem } from "@/types/message";
 
 function formatTime(ts: number) {
   return new Date(ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-}
-
-function formatSize(bytes: number) {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 function FileRow({ item }: { item: SharedItem }) {
@@ -92,7 +87,15 @@ export function SharedFeed() {
                 <span className="text-xs font-medium text-foreground">{item.peerName}</span>
                 <span className="text-xs text-muted-foreground">{formatTime(item.timestamp)}</span>
               </div>
-              {item.type === "text" || item.type === "code" || item.type === "note" ? (
+              {item.type === "code" ? (
+                <pre className="mt-1 text-sm text-foreground overflow-x-auto whitespace-pre-wrap break-words line-clamp-3 font-mono">
+                  {item.content}
+                </pre>
+              ) : item.type === "note" ? (
+                <p className="mt-1 text-sm text-foreground/80 italic whitespace-pre-wrap break-words line-clamp-3">
+                  {item.content}
+                </p>
+              ) : item.type === "text" ? (
                 <p className="mt-1 text-sm text-foreground whitespace-pre-wrap break-words line-clamp-3">
                   {item.content}
                 </p>

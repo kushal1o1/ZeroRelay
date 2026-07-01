@@ -13,12 +13,14 @@ interface UIState {
   rooms: RoomInfo[];
   activeRoomId: string | null;
   dialog: "create" | "join" | null;
+  hydrated: boolean;
 
   setRooms: (rooms: RoomInfo[]) => void;
   addRoom: (room: RoomInfo) => void;
   removeRoom: (roomId: string) => void;
   setActiveRoomId: (id: string | null) => void;
   setDialog: (dialog: "create" | "join" | null) => void;
+  setHydrated: () => void;
 }
 
 export const useUIStore = create<UIState>()(
@@ -27,6 +29,7 @@ export const useUIStore = create<UIState>()(
       rooms: [{ id: "global", name: "Global", hasPassword: false }],
       activeRoomId: "global",
       dialog: null,
+      hydrated: false,
 
       setRooms: (rooms) => set({ rooms }),
       addRoom: (room) =>
@@ -36,6 +39,7 @@ export const useUIStore = create<UIState>()(
       removeRoom: (roomId) => set((s) => ({ rooms: s.rooms.filter((r) => r.id !== roomId) })),
       setActiveRoomId: (id) => set({ activeRoomId: id }),
       setDialog: (dialog) => set({ dialog }),
+      setHydrated: () => set({ hydrated: true }),
     }),
     {
       name: "zerorelay-rooms",
@@ -43,6 +47,7 @@ export const useUIStore = create<UIState>()(
         rooms: state.rooms,
         activeRoomId: state.activeRoomId,
       }),
+      onRehydrateStorage: () => (state) => state?.setHydrated(),
     },
   ),
 );

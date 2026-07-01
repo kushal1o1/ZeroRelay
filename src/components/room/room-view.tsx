@@ -1,5 +1,4 @@
 "use client";
-import { ConnectionStatus } from "@/components/connection-status";
 import { useRoomContext } from "@/components/room-provider";
 import { SharedFeed } from "@/components/room/message-feed";
 import { PresenceList } from "@/components/room/presence-list";
@@ -7,7 +6,7 @@ import { SharePanel } from "@/components/room/share-panel";
 import { useRoomStore } from "@/stores/room-store";
 import { useUIStore } from "@/stores/ui-store";
 import type { ItemType, Retention } from "@/types/message";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 export function RoomView() {
   const { peers, connected, error } = useRoomStore();
@@ -15,6 +14,13 @@ export function RoomView() {
   const { shareText, shareFile } = useRoomContext();
   const [selectedPeerId, setSelectedPeerId] = useState<string | null>(null);
   const targetPeer = selectedPeerId ? peers.find((p) => p.id === selectedPeerId) : null;
+
+  // Reset selection when the selected peer leaves or the room changes.
+  useEffect(() => {
+    if (selectedPeerId && !peers.some((p) => p.id === selectedPeerId)) {
+      setSelectedPeerId(null);
+    }
+  }, [peers, selectedPeerId]);
 
   const handleSend = (text: string, type: ItemType, retention: Retention) =>
     shareText(text, selectedPeerId || undefined, type, retention);
@@ -36,7 +42,6 @@ export function RoomView() {
             </p>
           </div>
         </div>
-        <ConnectionStatus />
       </header>
       {error && (
         <div className="mx-6 mt-4 rounded-lg bg-destructive/10 px-4 py-3 text-sm text-destructive">

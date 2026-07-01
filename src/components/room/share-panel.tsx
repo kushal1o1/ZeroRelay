@@ -1,6 +1,7 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
+import { formatSize } from "@/lib/format";
 import type { ItemType, Retention } from "@/types/message";
 import { ITEM_TYPE_LABELS, RETENTION_LABELS } from "@/types/message";
 import { useEffect, useRef, useState } from "react";
@@ -9,12 +10,6 @@ interface SharePanelProps {
   targetName: string | null;
   onSend: (text: string, type: ItemType, retention: Retention) => void;
   onSendFile: (file: File, retention: Retention) => void;
-}
-
-function formatSize(bytes: number) {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 const TYPES: ItemType[] = ["text", "code", "note", "file"];
