@@ -61,7 +61,6 @@ export class SignalingClient {
     this.wsGen++;
     if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
     this.reconnectTimer = null;
-    this.listeners.clear();
     this.lastJoin = null;
     this.ws?.close();
     this.ws = null;

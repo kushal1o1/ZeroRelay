@@ -4,7 +4,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "ZeroRelay",
-  description: "Peer-to-peer file sharing on your network",
+  description: "Peer-to-peer file sharing on the network",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

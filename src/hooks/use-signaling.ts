@@ -77,8 +77,6 @@ export function useSignaling(onMessage?: MessageHandler) {
         case "room-deleted":
           useUIStore.getState().removeRoom(msg.roomId);
           if (state.roomId === msg.roomId) {
-            state.setRoomId(null);
-            state.setPeers([]);
             joinRoomRef.current("global");
           }
           break;
@@ -101,11 +99,19 @@ export function useSignaling(onMessage?: MessageHandler) {
 
     const targetUrl = resolveRoomUrl(roomId);
     if (client.url !== targetUrl) {
+      // Clear stale state BEFORE reconnect so the useRoom subscription
+      // tears down old WebRTC connections and doesn't try to connect
+      // to old room's peers.
+      state.setPeers([]);
+      state.setRoomId(roomId);
+      state.setConnected(false);
+      state.setError(null);
       client.reconnect(targetUrl);
+    } else {
+      state.setRoomId(roomId);
+      state.setError(null);
     }
 
-    state.setRoomId(roomId);
-    state.setError(null);
     const msg: ClientMessage = {
       type: "join",
       roomId,
@@ -123,12 +129,14 @@ export function useSignaling(onMessage?: MessageHandler) {
       const msg: ClientMessage = { type: "leave", roomId: state.roomId, peerId: state.peerId };
       client.send(msg);
     }
-    state.setRoomId(null);
-    state.setPeers([]);
 
     // Reconnect to the global room
     const globalUrl = resolveBaseUrl();
     if (client.url !== globalUrl) {
+      state.setPeers([]);
+      state.setRoomId("global");
+      state.setConnected(false);
+      state.setError(null);
       client.reconnect(globalUrl);
       const s = useRoomStore.getState();
       const joinMsg: ClientMessage = {
