@@ -73,6 +73,14 @@ export function useSignaling(onMessage?: MessageHandler) {
           break;
         case "error":
           state.setError(msg.message);
+          if (msg.message === "Invalid password") {
+            // Join was rejected — revert state and return to global.
+            // page.tsx auto-join effect will pick up the change.
+            state.setRoomId(null);
+            state.setConnected(false);
+            state.setPeers([]);
+            useUIStore.getState().setActiveRoomId("global");
+          }
           break;
         case "room-deleted":
           useUIStore.getState().removeRoom(msg.roomId);

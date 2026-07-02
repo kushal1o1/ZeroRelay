@@ -23,7 +23,7 @@ export function CreateRoomDialog() {
     const id = name.toLowerCase().replace(/\s+/g, "-");
     addRoom({
       id,
-      name,
+      name: id,
       hasPassword: !!password,
       password: password || undefined,
       createdBy: isCreate ? peerId : undefined,
