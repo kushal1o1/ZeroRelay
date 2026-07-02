@@ -20,7 +20,14 @@ export function UserCard({ peer, isSelected, onClick }: UserCardProps) {
     >
       <Avatar name={peer.name} peerId={peer.id} size="md" />
       <div className="min-w-0 flex-1">
-        <p className="text-sm font-medium text-foreground truncate">{peer.name}</p>
+        <div className="flex items-center gap-1.5">
+          <p className="text-sm font-medium text-foreground truncate">{peer.name}</p>
+          {peer.locale === "local" && (
+            <span className="shrink-0 rounded bg-accent/15 px-1.5 py-0.5 text-[10px] font-medium text-accent">
+              LAN
+            </span>
+          )}
+        </div>
         <p className="text-xs text-muted-foreground">Online</p>
       </div>
     </button>

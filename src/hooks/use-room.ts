@@ -2,6 +2,7 @@
 import { useSignaling } from "@/hooks/use-signaling";
 import { useWebRTC } from "@/hooks/use-webrtc";
 import { type Incoming, applyChunk, sendFileInChunks, triggerDownload } from "@/lib/file-transfer";
+import { ensureLocalIPs } from "@/lib/ice";
 import { generateId } from "@/lib/id";
 import { useAvatarStore } from "@/stores/avatar-store";
 import { useMessageStore } from "@/stores/message-store";
@@ -41,6 +42,16 @@ export function useRoom() {
       return;
     }
     const store = useMessageStore.getState();
+    const roomState = useRoomStore.getState();
+
+    // In global room, silently drop shares from remote peers.
+    if (
+      roomState.roomId === "global" &&
+      (msg?.type === "share" || msg?.type === "avatar") &&
+      roomState.peers.find((p) => p.id === fromPeerId)?.locale === "remote"
+    ) {
+      return;
+    }
     switch (msg?.type) {
       case "share":
         store.addItem(msg.item);
@@ -81,7 +92,12 @@ export function useRoom() {
     handleAnswer: (from: string, sdp: SDP) => Promise<void>;
     handleIceCandidate: (
       from: string,
-      candidate: { candidate: string; sdpMid: string | null; sdpMLineIndex: number | null },
+      candidate: {
+        candidate: string;
+        sdpMid: string | null;
+        sdpMLineIndex: number | null;
+        address?: string | null;
+      },
     ) => void;
   }>({
     handleOffer: async () => {},
@@ -118,6 +134,11 @@ export function useRoom() {
     [peerId],
   );
 
+  // When we learn a peer's locale from ICE candidates, tag them in the store.
+  const onPeerLocale = useCallback((targetId: string, locale: "local" | "remote") => {
+    useRoomStore.getState().setPeerLocale(targetId, locale);
+  }, []);
+
   const {
     connectToPeer,
     disconnectFromPeer,
@@ -128,7 +149,15 @@ export function useRoom() {
     sendToPeer,
     broadcast,
     bufferedAmount,
-  } = useWebRTC(peerId, sendSignaling, onData, onChannelOpen);
+    retryPendingLocale,
+  } = useWebRTC(peerId, sendSignaling, onData, onChannelOpen, onPeerLocale);
+
+  // Kick off LAN IP detection early; retry any pending locale classifications.
+  useEffect(() => {
+    ensureLocalIPs()
+      .then(() => retryPendingLocale())
+      .catch(() => {});
+  }, [retryPendingLocale]);
 
   // Set refs so msgHandler / onData always use the latest functions.
   webrtcRef.current = { handleOffer, handleAnswer, handleIceCandidate };
@@ -171,9 +200,20 @@ export function useRoom() {
     (item: SharedItem, targetPeerId?: string): boolean => {
       const msg: DataMessage = { type: "share", item, targetPeerId };
       const payload = JSON.stringify(msg);
-      const delivered = targetPeerId
-        ? sendToPeer(targetPeerId, payload)
-        : broadcast(payload).length > 0;
+      const state = useRoomStore.getState();
+      let delivered = false;
+      if (targetPeerId) {
+        delivered = sendToPeer(targetPeerId, payload);
+      } else if (state.roomId === "global") {
+        // Global room: only share with local-LAN peers.
+        for (const peer of state.peers) {
+          if (peer.id === state.peerId) continue;
+          if (peer.locale === "remote") continue;
+          if (sendToPeer(peer.id, payload)) delivered = true;
+        }
+      } else {
+        delivered = broadcast(payload).length > 0;
+      }
       useMessageStore.getState().addItem(item);
       if (!delivered) console.warn("Share not delivered (no open data channel yet)");
       return delivered;

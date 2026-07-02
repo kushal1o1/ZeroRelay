@@ -1,21 +1,26 @@
 "use client";
+import { extractCandidateIP, sameLAN } from "@/lib/ice";
 import { useRoomStore } from "@/stores/room-store";
 import { useCallback, useEffect, useRef } from "react";
 import type { ClientMessage, SDP } from "../../shared/types";
 
 type DataHandler = (peerId: string, data: string) => void;
+type LocaleHandler = (peerId: string, locale: "local" | "remote") => void;
 
 export function useWebRTC(
   peerId: string,
   sendSignaling: (msg: ClientMessage) => void,
   onData: DataHandler,
   onChannelOpen?: (peerId: string) => void,
+  onPeerLocale?: LocaleHandler,
 ) {
   const connectionsRef = useRef<Map<string, RTCPeerConnection>>(new Map());
   const channelsRef = useRef<Map<string, RTCDataChannel>>(new Map());
   const pendingIceRef = useRef<Map<string, RTCIceCandidateInit[]>>(new Map());
-  const handlersRef = useRef({ onData, sendSignaling, onChannelOpen });
-  handlersRef.current = { onData, sendSignaling, onChannelOpen };
+  const localeClassified = useRef<Set<string>>(new Set());
+  const pendingLocaleIPs = useRef<Map<string, string>>(new Map());
+  const handlersRef = useRef({ onData, sendSignaling, onChannelOpen, onPeerLocale });
+  handlersRef.current = { onData, sendSignaling, onChannelOpen, onPeerLocale };
 
   // Recovery bookkeeping (Fix 4/5). Refs break the mutual reference between
   // createConnection's event handlers and the initiate/restart callbacks.
@@ -89,6 +94,7 @@ export function useWebRTC(
             sdpMid: e.candidate.sdpMid,
             sdpMLineIndex: e.candidate.sdpMLineIndex,
             usernameFragment: e.candidate.usernameFragment,
+            address: e.candidate.address,
           },
         };
         handlersRef.current.sendSignaling(msg);
@@ -269,8 +275,52 @@ export function useWebRTC(
   const handleIceCandidate = useCallback(
     (
       from: string,
-      candidate: { candidate: string; sdpMid: string | null; sdpMLineIndex: number | null },
+      candidate: {
+        candidate: string;
+        sdpMid: string | null;
+        sdpMLineIndex: number | null;
+        address?: string | null;
+      },
     ) => {
+      // Detect peer locale from ICE candidates.  Prefer srflx (public IP,
+      // always real) over host (may be mDNS in Chrome).  "remote" from a
+      // host candidate can be upgraded to "local" once srflx arrives.
+      const isSrflx = candidate.candidate.includes("typ srflx");
+      const rawIP =
+        candidate.address &&
+        !candidate.address.includes(".local") &&
+        /^\d+\.\d+\.\d+\.\d+$/.test(candidate.address)
+          ? candidate.address
+          : extractCandidateIP(candidate.candidate);
+      if (rawIP && isSrflx) {
+        // Srflx — always a real (public) IP.  Classify immediately.
+        const isLocal = sameLAN(rawIP);
+        if (isLocal !== null) {
+          localeClassified.current.add(from);
+          pendingLocaleIPs.current.delete(from);
+          handlersRef.current.onPeerLocale?.(from, isLocal ? "local" : "remote");
+        } else {
+          // Local IPs not detected yet — store for retry.
+          pendingLocaleIPs.current.set(from, rawIP);
+        }
+      } else if (rawIP && isSrflx === false && !localeClassified.current.has(from)) {
+        // Host candidate — defer to srflx if it hasn't arrived yet.
+        const isLocal = sameLAN(rawIP);
+        if (isLocal === true) {
+          localeClassified.current.add(from);
+          handlersRef.current.onPeerLocale?.(from, "local");
+        } else if (isLocal === null) {
+          // Local IPs not detected yet — store so retryPendingLocale can
+          // re-evaluate once our own LAN detection finishes.
+          pendingLocaleIPs.current.set(from, rawIP);
+        } else {
+          // "remote" — add to classified so we don't re-process, but srflx
+          // can override later (srflx branch doesn't check the guard).
+          localeClassified.current.add(from);
+          handlersRef.current.onPeerLocale?.(from, "remote");
+        }
+      }
+
       const pc = connectionsRef.current.get(from);
       if (!pc) return;
       if (!pc.currentRemoteDescription) {
@@ -363,7 +413,20 @@ export function useWebRTC(
     return sentTo;
   }, []);
 
-  // Clean up all peer connections on unmount to avoid leaking connections
+  // Re-process any pending locale classifications once local IPs are known.
+  const retryPendingLocale = useCallback(() => {
+    for (const [from, hostIP] of pendingLocaleIPs.current) {
+      if (localeClassified.current.has(from)) continue;
+      const isLocal = sameLAN(hostIP);
+      if (isLocal === true) {
+        localeClassified.current.add(from);
+        handlersRef.current.onPeerLocale?.(from, "local");
+      } else if (isLocal === false) {
+        localeClassified.current.add(from);
+        handlersRef.current.onPeerLocale?.(from, "remote");
+      }
+    }
+  }, []);
   // when the component using this hook goes away.
   useEffect(() => {
     return () => {
@@ -381,5 +444,6 @@ export function useWebRTC(
     sendToPeer,
     broadcast,
     bufferedAmount,
+    retryPendingLocale,
   };
 }

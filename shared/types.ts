@@ -3,6 +3,7 @@ export interface Peer {
   id: string;
   name: string;
   joinedAt: number;
+  locale?: "local" | "remote" | "unknown";
 }
 
 // ── WebRTC types (no DOM dependency) ──
@@ -16,6 +17,7 @@ export interface ICECandidate {
   sdpMid: string | null;
   sdpMLineIndex: number | null;
   usernameFragment?: string | null;
+  address?: string | null;
 }
 
 // ── Client → Server ──

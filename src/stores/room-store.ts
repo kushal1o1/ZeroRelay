@@ -19,6 +19,7 @@ interface RoomState {
   addPeer: (peer: Peer) => void;
   removePeer: (peerId: string) => void;
   renamePeer: (peerId: string, name: string) => void;
+  setPeerLocale: (peerId: string, locale: NonNullable<Peer["locale"]>) => void;
 }
 
 const savedName =
@@ -63,4 +64,6 @@ export const useRoomStore = create<RoomState>((set) => ({
   removePeer: (peerId) => set((s) => ({ peers: s.peers.filter((p) => p.id !== peerId) })),
   renamePeer: (peerId, name) =>
     set((s) => ({ peers: s.peers.map((p) => (p.id === peerId ? { ...p, name } : p)) })),
+  setPeerLocale: (peerId, locale) =>
+    set((s) => ({ peers: s.peers.map((p) => (p.id === peerId ? { ...p, locale } : p)) })),
 }));
