@@ -107,6 +107,7 @@ export class RoomDO implements DurableObject {
       this.send(conn.ws, { type: "room-deleted", roomId: msg.roomId });
     }
     this.connections.clear();
+    this.password = null;
   }
 
   private handleRename(msg: ClientMessage & { type: "rename" }) {
@@ -130,9 +131,13 @@ export class RoomDO implements DurableObject {
       if (conn.ws === ws) {
         this.connections.delete(peerId);
         this.broadcast({ type: "peer-left", peerId });
-        this.broadcastPresence();
         break;
       }
+    }
+    if (this.connections.size === 0) {
+      this.password = null;
+    } else {
+      this.broadcastPresence();
     }
   }
 
