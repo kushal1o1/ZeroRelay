@@ -1,8 +1,8 @@
 "use client";
 
-import Link from "next/link";
 import { Features } from "@/components/landing/features";
 import { HeroVisual } from "@/components/landing/hero-visual";
+import Link from "next/link";
 
 function GitHubIcon() {
   return (
@@ -18,7 +18,10 @@ export default function LandingPage() {
       <header className="flex items-center justify-between border-b border-border px-4 py-3 md:px-8">
         <span className="text-xl font-bold tracking-tight md:text-2xl">
           <span className="relative">
-            <span className="absolute inset-x-0 top-1/2 h-[0.08em] -translate-y-1/2 bg-current opacity-60" aria-hidden />
+            <span
+              className="absolute inset-x-0 top-1/2 h-[0.08em] -translate-y-1/2 bg-current opacity-60"
+              aria-hidden
+            />
             0
           </span>
           Relay
@@ -45,7 +48,10 @@ export default function LandingPage() {
       <section className="flex flex-col items-center justify-center px-4 pb-12 pt-16 text-center md:pb-16 md:pt-24">
         <h1 className="text-5xl font-bold tracking-tight md:text-7xl">
           <span className="relative">
-            <span className="absolute inset-x-0 top-1/2 h-[0.08em] -translate-y-1/2 bg-current opacity-60" aria-hidden />
+            <span
+              className="absolute inset-x-0 top-1/2 h-[0.08em] -translate-y-1/2 bg-current opacity-60"
+              aria-hidden
+            />
             0
           </span>
           Relay
@@ -78,9 +84,7 @@ export default function LandingPage() {
       </section>
 
       <section className="border-t border-border px-4 py-12 md:py-20">
-        <h2 className="text-center text-2xl font-semibold md:text-3xl">
-          How It Works
-        </h2>
+        <h2 className="text-center text-2xl font-semibold md:text-3xl">How It Works</h2>
         <div className="mx-auto mt-8 grid max-w-4xl gap-6 md:grid-cols-3">
           {[
             {
@@ -103,9 +107,7 @@ export default function LandingPage() {
               key={item.step}
               className="rounded-xl border border-border bg-card p-6 text-center"
             >
-              <span className="text-3xl font-bold text-signal">
-                {item.step}
-              </span>
+              <span className="text-3xl font-bold text-signal">{item.step}</span>
               <h3 className="mt-3 text-lg font-semibold">{item.title}</h3>
               <p className="mt-2 text-sm text-muted-foreground">{item.desc}</p>
             </div>
@@ -114,9 +116,7 @@ export default function LandingPage() {
       </section>
 
       <section className="border-t border-border px-4 py-12 md:py-20">
-        <h2 className="text-center text-2xl font-semibold md:text-3xl">
-          Features
-        </h2>
+        <h2 className="text-center text-2xl font-semibold md:text-3xl">Features</h2>
         <div className="mx-auto mt-8 max-w-4xl">
           <Features />
         </div>
@@ -125,8 +125,7 @@ export default function LandingPage() {
       <section className="border-t border-border bg-muted/30 px-4 py-12 text-center md:py-20">
         <h2 className="text-2xl font-semibold md:text-3xl">Open Source</h2>
         <p className="mx-auto mt-3 max-w-md text-muted-foreground">
-          0Relay is free and open source. View the code, contribute, or leave a
-          star on GitHub.
+          0Relay is free and open source. View the code, contribute, or leave a star on GitHub.
         </p>
         <a
           href="https://github.com/kushal1o1/ZeroRelay"
@@ -140,15 +139,11 @@ export default function LandingPage() {
       </section>
 
       <section className="border-t border-border px-4 py-16 text-center md:py-24">
-        <h2 className="text-2xl font-semibold md:text-3xl">
-          Ready to relay?
-        </h2>
-        <p className="mt-3 text-muted-foreground">
-          No signup. No servers. Just pure peer-to-peer.
-        </p>
+        <h2 className="text-2xl font-semibold md:text-3xl">Ready to relay?</h2>
+        <p className="mt-3 text-muted-foreground">No signup. No servers. Just pure peer-to-peer.</p>
         <Link
           href="/chat"
-            className="mt-6 inline-flex items-center gap-2 rounded-xl bg-signal px-8 py-3 text-lg font-semibold text-background transition-colors hover:bg-signal/90"
+          className="mt-6 inline-flex items-center gap-2 rounded-xl bg-signal px-8 py-3 text-lg font-semibold text-background transition-colors hover:bg-signal/90"
         >
           Enter the Mesh →
         </Link>
