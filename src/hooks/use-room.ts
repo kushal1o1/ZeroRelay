@@ -197,13 +197,22 @@ export function useRoom() {
   // Send a share to a specific peer or everyone, and echo it into the local
   // feed so the sender sees it immediately (even if no peer is connected yet).
   const dispatchShare = useCallback(
-    (item: SharedItem, targetPeerId?: string): boolean => {
-      const msg: DataMessage = { type: "share", item, targetPeerId };
+    (item: SharedItem, target?: string | string[]): boolean => {
+      const msg: DataMessage = {
+        type: "share",
+        item,
+        targetPeerId: Array.isArray(target) ? undefined : target,
+      };
       const payload = JSON.stringify(msg);
       const state = useRoomStore.getState();
       let delivered = false;
-      if (targetPeerId) {
-        delivered = sendToPeer(targetPeerId, payload);
+      if (Array.isArray(target)) {
+        // Direct-send to a specific set of peers (echoed into our own feed once).
+        for (const id of target) {
+          if (sendToPeer(id, payload)) delivered = true;
+        }
+      } else if (target) {
+        delivered = sendToPeer(target, payload);
       } else if (state.roomId === "global") {
         // Global room: only share with local-LAN peers.
         for (const peer of state.peers) {
@@ -224,7 +233,7 @@ export function useRoom() {
   const shareText = useCallback(
     (
       content: string,
-      targetPeerId?: string,
+      targetPeerId?: string | string[],
       type: ItemType = "text",
       retention: Retention = "session",
     ) => {
@@ -245,7 +254,7 @@ export function useRoom() {
   );
 
   const shareFile = useCallback(
-    (file: File, targetPeerId?: string, retention: Retention = "forever") => {
+    (file: File, targetPeerId?: string | string[], retention: Retention = "forever") => {
       const state = useRoomStore.getState();
       const item: SharedItem = {
         id: generateId(),
