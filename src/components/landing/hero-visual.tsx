@@ -307,7 +307,7 @@ export function HeroVisual() {
         <div className="hero-sweep" />
       </div>
 
-      <svg viewBox="0 0 300 300" className="h-full w-full">
+      <svg viewBox="0 0 300 300" className="h-full w-full" aria-hidden={true}>
         <g className="hero-outer-rings">
           {[40, 80, 120].map((r) => (
             <circle
