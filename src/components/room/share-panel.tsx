@@ -11,7 +11,7 @@ interface ComposerProps {
   onTogglePeer: (id: string) => void;
   onClearTargets: () => void;
   onSend: (text: string, type: ItemType, retention: Retention) => void;
-  onSendFile: (file: File, retention: Retention) => void;
+  onSendFile: (files: File[], retention: Retention) => void;
 }
 
 const TYPES: { k: ItemType; label: string }[] = [
@@ -40,7 +40,8 @@ export function Composer({
   const [text, setText] = useState("");
   const [type, setType] = useState<ItemType>("text");
   const [retention, setRetention] = useState<Retention>("session");
-  const [staged, setStaged] = useState<File | null>(null);
+  const [staged, setStaged] = useState<File[]>([]);
+  const [isDragOver, setIsDragOver] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const pickerRef = useRef<HTMLDivElement>(null);
@@ -78,8 +79,8 @@ export function Composer({
     setText("");
   };
   const confirmFile = () => {
-    if (staged) onSendFile(staged, retention);
-    setStaged(null);
+    if (staged.length) onSendFile(staged, retention);
+    setStaged([]);
   };
 
   return (
@@ -169,21 +170,32 @@ export function Composer({
       </div>
 
       {type === "file" ? (
-        staged ? (
+        staged.length > 0 ? (
           <div className="rounded-xl border border-border p-3">
-            <div className="truncate text-sm text-accent">{staged.name}</div>
-            <div className="text-[11px] text-muted-foreground">{formatSize(staged.size)}</div>
+            <div className="mb-2 max-h-32 space-y-1 overflow-y-auto">
+              {staged.map((f) => (
+                <div
+                  key={f.name + f.size}
+                  className="flex items-center justify-between gap-2 text-sm"
+                >
+                  <span className="truncate text-accent">{f.name}</span>
+                  <span className="shrink-0 text-[11px] text-muted-foreground">
+                    {formatSize(f.size)}
+                  </span>
+                </div>
+              ))}
+            </div>
             <div className="mt-2 flex gap-2">
               <button
                 type="button"
                 onClick={confirmFile}
                 className="flex-1 rounded-lg bg-accent px-3 py-1.5 text-sm font-semibold text-accent-foreground"
               >
-                Send to {targetShort}
+                Send {staged.length} file{staged.length > 1 ? "s" : ""} to {targetShort}
               </button>
               <button
                 type="button"
-                onClick={() => setStaged(null)}
+                onClick={() => setStaged([])}
                 className="rounded-lg px-3 py-1.5 text-sm text-muted-foreground"
               >
                 Cancel
@@ -193,17 +205,32 @@ export function Composer({
         ) : (
           <button
             type="button"
+            onDragOver={(e) => {
+              e.preventDefault();
+              setIsDragOver(true);
+            }}
+            onDragLeave={() => setIsDragOver(false)}
+            onDrop={(e) => {
+              e.preventDefault();
+              setIsDragOver(false);
+              const files = Array.from(e.dataTransfer.files);
+              if (files.length) setStaged(files);
+            }}
             onClick={() => fileRef.current?.click()}
-            className="flex w-full flex-col items-center rounded-xl border-2 border-dashed border-border p-5 text-sm text-muted-foreground transition-colors hover:border-accent/50"
+            className={`flex w-full cursor-pointer flex-col items-center rounded-xl border-2 border-dashed p-5 text-sm text-muted-foreground transition-colors ${
+              isDragOver ? "border-accent bg-accent/5" : "border-border hover:border-accent/50"
+            }`}
           >
-            Drop a file or click to browse
+            <span>Drop files here or click to browse</span>
+            <span className="mt-1 text-[10px] text-muted-foreground">Multiple files accepted</span>
             <input
               ref={fileRef}
               type="file"
+              multiple
               className="hidden"
               onChange={(e) => {
-                const f = e.target.files?.[0];
-                if (f) setStaged(f);
+                const files = Array.from(e.target.files || []);
+                if (files.length) setStaged(files);
                 e.target.value = "";
               }}
             />

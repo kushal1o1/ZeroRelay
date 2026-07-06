@@ -2,11 +2,10 @@ import type { FileChunk } from "@/types/message";
 import { base64ToBytes, bytesToBase64 } from "./base64";
 
 const CHUNK_SIZE = 16 * 1024;
-// Pause streaming while the channel's send buffer is above this, so a large
-// file can't blow up memory / get dropped.
 const MAX_BUFFERED = 1_000_000;
 
-/** Stream a file to one peer as ordered base64 `file-chunk` messages. */
+/** Stream a file to one peer. Reads one 16 KB slice at a time instead of
+ *  loading the whole file into memory. Sends backpressure via bufferedAmount. */
 export async function sendFileInChunks(
   file: File,
   sharedItemId: string,
@@ -14,25 +13,24 @@ export async function sendFileInChunks(
   send: (peerId: string, data: string) => boolean,
   bufferedAmount: (peerId: string) => number,
 ): Promise<void> {
-  const bytes = new Uint8Array(await file.arrayBuffer());
-  const total = bytes.length;
+  const total = file.size;
 
   for (let offset = 0; offset < total; offset += CHUNK_SIZE) {
     while (bufferedAmount(targetPeerId) > MAX_BUFFERED) {
       await new Promise((resolve) => setTimeout(resolve, 20));
     }
-    const slice = bytes.subarray(offset, offset + CHUNK_SIZE);
+    const blob = file.slice(offset, Math.min(offset + CHUNK_SIZE, total));
+    const bytes = new Uint8Array(await blob.arrayBuffer());
     const chunk: FileChunk = {
       type: "file-chunk",
       sharedItemId,
       offset,
       total,
-      data: bytesToBase64(slice),
+      data: bytesToBase64(bytes),
     };
-    if (!send(targetPeerId, JSON.stringify(chunk))) return; // channel gone
+    if (!send(targetPeerId, JSON.stringify(chunk))) return;
   }
 
-  // Empty file: send a single zero-length marker so the receiver completes.
   if (total === 0) {
     const marker: FileChunk = { type: "file-chunk", sharedItemId, offset: 0, total: 0, data: "" };
     send(targetPeerId, JSON.stringify(marker));
@@ -40,25 +38,26 @@ export async function sendFileInChunks(
 }
 
 export interface Incoming {
-  buf: Uint8Array<ArrayBuffer>;
+  parts: Blob[];
   received: number;
   total: number;
 }
 
-/** Fold one chunk into the reassembly map; returns the (running) entry and
- * whether the file is now complete. */
+/** Accumulate one chunk into the reassembly map. The receiver never holds the
+ *  full file in memory — each decoded chunk becomes a separate Blob part that
+ *  the browser can flush independently. */
 export function applyChunk(
   incoming: Map<string, Incoming>,
   chunk: FileChunk,
 ): { entry: Incoming; done: boolean } {
   let entry = incoming.get(chunk.sharedItemId);
   if (!entry) {
-    entry = { buf: new Uint8Array(chunk.total), received: 0, total: chunk.total };
+    entry = { parts: [], received: 0, total: chunk.total };
     incoming.set(chunk.sharedItemId, entry);
   }
   if (chunk.data) {
     const bytes = base64ToBytes(chunk.data);
-    entry.buf.set(bytes, chunk.offset);
+    entry.parts.push(new Blob([bytes.slice()]));
     entry.received += bytes.length;
   }
   const done = entry.received >= entry.total;
@@ -66,13 +65,10 @@ export function applyChunk(
   return { entry, done };
 }
 
-/** Turn reassembled bytes into a browser download. */
-export function triggerDownload(
-  fileName: string,
-  mime: string,
-  buf: Uint8Array<ArrayBuffer>,
-): void {
-  const blob = new Blob([buf], { type: mime || "application/octet-stream" });
+/** Build the final Blob from accumulated parts and trigger the browser
+ *  download. Parts are concatenated lazily — no full-file copy. */
+export function finalizeDownload(entry: Incoming, fileName: string, mime: string): void {
+  const blob = new Blob(entry.parts, { type: mime || "application/octet-stream" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;

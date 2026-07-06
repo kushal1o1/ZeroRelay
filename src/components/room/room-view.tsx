@@ -72,9 +72,9 @@ export function RoomView({ onEditProfile }: { onEditProfile: () => void }) {
     shareText(text, targets, type, retention);
     radarRef.current?.playSend(targets ?? null);
   };
-  const handleSendFile = (file: File, retention: Retention) => {
+  const handleSendFile = (files: File[], retention: Retention) => {
     const targets = selectedPeerIds.length ? selectedPeerIds : undefined;
-    shareFile(file, targets, retention);
+    for (const file of files) shareFile(file, targets, retention);
     radarRef.current?.playSend(targets ?? null);
   };
 

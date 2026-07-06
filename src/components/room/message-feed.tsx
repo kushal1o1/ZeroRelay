@@ -89,6 +89,7 @@ export function FileCard({ item }: { item: SharedItem }) {
   const myPeerId = useRoomStore((s) => s.peerId);
   const pct = useMessageStore((s) => s.progress[item.id]);
   const mine = item.peerId === myPeerId;
+  const handleClick = () => requestFile(item);
 
   return (
     <div className="zr-filecard">
@@ -104,13 +105,22 @@ export function FileCard({ item }: { item: SharedItem }) {
       ) : pct === undefined ? (
         <button
           type="button"
-          onClick={() => requestFile(item)}
+          onClick={handleClick}
           className="mt-2 inline-flex items-center gap-1.5 rounded-lg bg-accent px-3 py-1 font-mono text-[11px] font-semibold text-accent-foreground transition-opacity hover:opacity-90"
         >
           ↓ download
         </button>
       ) : pct >= 1 ? (
-        <div className="mt-2 text-[10px] text-accent">Saved ✓</div>
+        <div className="mt-2 flex items-center gap-2">
+          <span className="text-[10px] text-accent">Saved</span>
+          <button
+            type="button"
+            onClick={handleClick}
+            className="inline-flex items-center gap-1 rounded-lg bg-accent px-2.5 py-1 font-mono text-[11px] font-semibold text-accent-foreground transition-opacity hover:opacity-90"
+          >
+            download again
+          </button>
+        </div>
       ) : (
         <div className="mt-2">
           <div className="zr-bar">

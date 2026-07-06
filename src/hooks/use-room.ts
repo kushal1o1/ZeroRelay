@@ -1,7 +1,7 @@
 "use client";
 import { useSignaling } from "@/hooks/use-signaling";
 import { useWebRTC } from "@/hooks/use-webrtc";
-import { type Incoming, applyChunk, sendFileInChunks, triggerDownload } from "@/lib/file-transfer";
+import { type Incoming, applyChunk, finalizeDownload, sendFileInChunks } from "@/lib/file-transfer";
 import { ensureLocalIPs } from "@/lib/ice";
 import { generateId } from "@/lib/id";
 import { useAvatarStore } from "@/stores/avatar-store";
@@ -74,7 +74,7 @@ export function useRoom() {
         store.setProgress(msg.sharedItemId, entry.total > 0 ? entry.received / entry.total : 1);
         if (done) {
           const item = store.items.find((i) => i.id === msg.sharedItemId);
-          triggerDownload(item?.fileName || "download", item?.mime || "", entry.buf);
+          finalizeDownload(entry, item?.fileName || "download", item?.mime || "");
         }
         break;
       }
@@ -268,11 +268,17 @@ export function useRoom() {
         mime: file.type,
         timestamp: Date.now(),
       };
-      // Keep the File around so we can stream its bytes when a peer requests it.
       outgoingFilesRef.current.set(item.id, file);
       dispatchShare(item, targetPeerId);
     },
     [peerId, dispatchShare],
+  );
+
+  const shareFiles = useCallback(
+    (files: File[], targetPeerId?: string | string[], retention: Retention = "forever") => {
+      for (const file of files) shareFile(file, targetPeerId, retention);
+    },
+    [shareFile],
   );
 
   // Receiver: ask the owner peer to stream a file's bytes; onData handles the
@@ -313,6 +319,7 @@ export function useRoom() {
     disconnectAll,
     shareText,
     shareFile,
+    shareFiles,
     requestFile,
     updateAvatar,
   };
