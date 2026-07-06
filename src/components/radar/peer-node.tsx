@@ -14,12 +14,21 @@ interface PeerNodeProps {
 }
 
 export function PeerNode({ peer, x, y, selected, onSelect, onDropFile }: PeerNodeProps) {
+  const sublabel = selected
+    ? "target"
+    : peer.locale === "local"
+      ? "LAN"
+      : peer.locale === "remote"
+        ? "remote"
+        : "online";
+
   return (
     <RadarNode
       name={peer.name}
+      peerId={peer.id}
       x={x}
       y={y}
-      sublabel={selected ? "target" : "online"}
+      sublabel={sublabel}
       selected={selected}
       onClick={onSelect}
       onDropFile={onDropFile}

@@ -2,34 +2,74 @@
 
 @custom-variant dark (&:where(.dark, .dark *));
 
+/* ── LIGHT (default) — white canvas, black ink, gray accents ── */
 :root {
   --color-background: #ffffff;
-  --color-foreground: #1d1d1f;
-  --color-muted: #f5f5f7;
-  --color-muted-foreground: #86868b;
-  --color-border: #d2d2d7;
-  --color-accent: #00b368;
+  --color-foreground: #171717;
+  --color-muted: #f5f5f5;
+  --color-muted-foreground: #737373;
+  --color-border: rgba(0, 0, 0, 0.12);
+  --color-accent: #171717;
   --color-accent-foreground: #ffffff;
-  --color-signal: #000000;
-  --color-destructive: #ff3b30;
+  --color-signal: #404040;
+  --color-destructive: #525252;
   --color-card: #ffffff;
-  --color-card-foreground: #1d1d1f;
-  --font-mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, "Liberation Mono",
-    monospace;
+  --color-card-foreground: #171717;
+  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
+  --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-note: "Caveat", ui-rounded, "Segoe UI", cursive;
+
+  /* extended (solar-system + tactile) tokens */
+  --faint: #a3a3a3;
+  --panel: rgba(255, 255, 255, 0.72);
+  --panel-2: rgba(0, 0, 0, 0.04);
+  --accent-2: #000000;
+  --accent-glow: rgba(0, 0, 0, 0.25);
+  --accent-soft: rgba(0, 0, 0, 0.06);
+  --direct: #737373;
+  --direct-soft: rgba(115, 115, 115, 0.12);
+  --t-edge: #171717;
+  --t-shadow: #171717;
+  --label-shadow: 0 1px 3px rgba(255, 255, 255, 0.85);
+  --modal-bg: #ffffff;
+  --danger: #525252;
+  --danger-soft: rgba(82, 82, 82, 0.1);
+  --note-yellow: #f5f5f5;
+  --note-pink: #e5e5e5;
+  --note-green: #ededed;
+  --note-blue: #e8e8e8;
+  --star-display: none;
 }
 
+/* ── DARK — near-black canvas, white ink, gray accents ── */
 .dark {
-  --color-background: #1d1d1f;
-  --color-foreground: #f5f5f7;
-  --color-muted: #2d2d2f;
-  --color-muted-foreground: #86868b;
-  --color-border: #424245;
-  --color-accent: #2ce69a;
-  --color-accent-foreground: #10231a;
-  --color-signal: #ffffff;
-  --color-destructive: #ff453a;
-  --color-card: #2d2d2f;
-  --color-card-foreground: #f5f5f7;
+  --color-background: #0a0a0a;
+  --color-foreground: #f5f5f5;
+  --color-muted: #171717;
+  --color-muted-foreground: #a3a3a3;
+  --color-border: rgba(255, 255, 255, 0.12);
+  --color-accent: #fafafa;
+  --color-accent-foreground: #0a0a0a;
+  --color-signal: #d4d4d4;
+  --color-destructive: #a3a3a3;
+  --color-card: #141414;
+  --color-card-foreground: #f5f5f5;
+
+  --faint: #525252;
+  --panel: rgba(255, 255, 255, 0.04);
+  --panel-2: rgba(255, 255, 255, 0.07);
+  --accent-2: #ffffff;
+  --accent-glow: rgba(255, 255, 255, 0.38);
+  --accent-soft: rgba(255, 255, 255, 0.12);
+  --direct: #a3a3a3;
+  --direct-soft: rgba(163, 163, 163, 0.14);
+  --t-edge: rgba(255, 255, 255, 0.28);
+  --t-shadow: #000000;
+  --label-shadow: 0 1px 6px #000;
+  --modal-bg: #141414;
+  --danger: #a3a3a3;
+  --danger-soft: rgba(163, 163, 163, 0.13);
+  --star-display: block;
 }
 
 @theme inline {
@@ -44,16 +84,29 @@
   --color-destructive: var(--color-destructive);
   --color-card: var(--color-card);
   --color-card-foreground: var(--color-card-foreground);
+  --color-faint: var(--faint);
+  --color-panel: var(--panel);
+  --color-panel-2: var(--panel-2);
+  --color-accent-2: var(--accent-2);
+  --color-direct: var(--direct);
   --font-mono: var(--font-mono);
+  --font-sans: var(--font-sans);
 }
 
 body {
-  background: var(--color-background);
   color: var(--color-foreground);
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-family: var(--font-sans);
+  background: radial-gradient(1100px 700px at 50% -12%, #f0f0f0 0%, transparent 55%),
+    radial-gradient(900px 800px at 100% 110%, #f2f2f2 0%, transparent 55%), var(--color-background);
+}
+.dark body {
+  background: radial-gradient(1200px 800px at 30% -10%, #161616 0%, transparent 60%),
+    radial-gradient(1000px 900px at 100% 100%, #121212 0%, transparent 55%), var(--color-background);
 }
 
-/* ── Radar / constellation animations (transforms + opacity only) ── */
+/* ══════════════════════════════════════════════════════════════
+   Radar / constellation animations (transforms + opacity only)
+   ══════════════════════════════════════════════════════════════ */
 @keyframes zr-pulse {
   0%,
   100% {
@@ -106,12 +159,41 @@ body {
     opacity: 0;
   }
 }
+@keyframes zr-halo {
+  0% {
+    transform: scale(1);
+    opacity: 0.5;
+  }
+  100% {
+    transform: scale(1.8);
+    opacity: 0;
+  }
+}
+@keyframes zr-twinkle {
+  from {
+    opacity: 0.15;
+  }
+  to {
+    opacity: 0.85;
+  }
+}
+/* continuous radar "ping" — expanding ring from the centre (like the homepage) */
+@keyframes zr-ping {
+  0% {
+    transform: translate(-50%, -50%) scale(0.32);
+    opacity: 0.45;
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 0;
+  }
+}
 
 .zr-pulse {
   animation: zr-pulse 2.4s ease-in-out infinite;
 }
 .zr-sweep {
-  animation: zr-sweep 7s linear infinite;
+  animation: zr-sweep 6s linear infinite;
 }
 .zr-ripple {
   animation: zr-ripple 0.9s ease-out forwards;
@@ -122,85 +204,469 @@ body {
 .zr-packet {
   animation: zr-packet 0.7s ease-in-out forwards;
 }
+.zr-ping {
+  animation: zr-ping 3.4s ease-out infinite;
+}
 
 @media (prefers-reduced-motion: reduce) {
   .zr-pulse,
   .zr-sweep,
   .zr-ripple,
   .zr-node-in,
-  .zr-packet {
+  .zr-packet,
+  .zr-ping {
     animation: none;
   }
 }
 
-/* ── Landing page animations ── */
-@keyframes l-float {
-  0%,
-  100% {
-    transform: translate(-50%, -50%);
-  }
-  50% {
-    transform: translate(-50%, calc(-50% - 8px));
-  }
+/* ══════════════════════════════════════════════════════════════
+   Tactile buttons — ink outline + hard offset shadow + pressable
+   ══════════════════════════════════════════════════════════════ */
+.zr-tactile {
+  border: 2px solid var(--t-edge);
+  box-shadow: 3px 3px 0 var(--t-shadow);
+  transition: transform 0.08s ease, box-shadow 0.08s ease, background 0.15s;
 }
-@keyframes l-pulse-glow {
-  0%,
-  100% {
-    opacity: 0.15;
-    transform: scale(1);
-  }
-  50% {
-    opacity: 0.3;
-    transform: scale(1.15);
-  }
+.zr-tactile:hover {
+  transform: translateY(2px);
+  box-shadow: 1px 1px 0 var(--t-shadow);
 }
-@keyframes l-pulse-ring {
-  0%,
-  100% {
-    opacity: 0.1;
-    transform: scale(1);
-  }
-  50% {
-    opacity: 0.25;
-    transform: scale(1.08);
-  }
+.zr-tactile:active {
+  transform: translateY(3px);
+  box-shadow: 0 0 0 var(--t-shadow);
+}
+/* signature-colour (accent) variant: hard coloured shadow */
+.zr-tactile-accent {
+  border-color: var(--accent-2);
+  box-shadow: 3px 3px 0 var(--accent-2);
+}
+.zr-tactile-accent:hover {
+  box-shadow: 1px 1px 0 var(--accent-2);
+}
+.zr-tactile-accent:active {
+  box-shadow: 0 0 0 var(--accent-2);
 }
 
-@keyframes l-packet {
-  0% {
-    transform: translate(0, 0) scale(0.4);
-    opacity: 0;
-  }
-  12% {
-    opacity: 1;
-  }
-  88% {
-    opacity: 1;
-  }
-  100% {
-    transform: translate(var(--dx), var(--dy)) scale(1.1);
-    opacity: 0;
-  }
+/* room tab */
+.zr-tab {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 12px;
+  border-radius: 12px;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-foreground);
+  background: var(--panel-2);
+  white-space: nowrap;
+  cursor: pointer;
+}
+.zr-tab-active {
+  color: var(--color-accent-foreground);
+  background: var(--color-accent);
+}
+.zr-tab-active .zr-dot {
+  background: var(--color-accent-foreground);
+}
+.zr-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--faint);
+}
+.zr-dot-live {
+  background: var(--color-accent);
+  box-shadow: 0 0 8px var(--accent-glow);
+  animation: zr-pulse 2.4s ease-in-out infinite;
 }
 
-.animate-l-float {
-  animation: l-float 3s ease-in-out infinite;
+/* brand glyph */
+.zr-brand-glyph {
+  position: relative;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 2px solid var(--color-accent);
+  box-shadow: 0 0 12px var(--accent-glow);
 }
-.animate-l-pulse-glow {
-  animation: l-pulse-glow 2s ease-in-out infinite;
-}
-.animate-l-pulse-ring {
-  animation: l-pulse-ring 3s ease-in-out infinite;
-}
-.animate-l-packet {
-  animation: l-packet 2s ease-in-out infinite;
+.zr-brand-glyph::after {
+  content: "";
+  position: absolute;
+  inset: 5px;
+  border-radius: 50%;
+  background: var(--color-accent);
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .animate-l-float,
-  .animate-l-pulse-glow,
-  .animate-l-pulse-ring,
-  .animate-l-packet {
-    animation: none;
-  }
+/* ══════════════════════════════════════════════════════════════
+   Solar-system radar
+   ══════════════════════════════════════════════════════════════ */
+.zr-sun-core {
+  position: relative;
+  width: 74px;
+  height: 74px;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle at 38% 32%,
+    #ffffff 0%,
+    var(--color-accent) 42%,
+    var(--accent-2) 100%
+  );
+  box-shadow: 0 0 0 6px var(--accent-soft), 0 0 34px 6px var(--accent-glow), 0 0 90px 12px
+    var(--accent-soft);
+  display: grid;
+  place-items: center;
+  color: var(--color-accent-foreground);
+  font-weight: 700;
+  font-size: 22px;
+  background-size: cover;
+  background-position: center;
+}
+.zr-sun-core::before,
+.zr-sun-core::after {
+  content: "";
+  position: absolute;
+  inset: -6px;
+  border-radius: 50%;
+  border: 1px solid var(--color-accent);
+  opacity: 0.5;
+  animation: zr-halo 2.8s ease-out infinite;
+}
+.zr-sun-core::after {
+  animation-delay: 1.4s;
+}
+.zr-planet-face {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-weight: 600;
+  font-size: 15px;
+  color: #0a0a0a;
+  border: 2px solid rgba(255, 255, 255, 0.22);
+  transition: transform 0.18s, box-shadow 0.18s, border-color 0.18s;
+  background-size: cover;
+  background-position: center;
+}
+.zr-planet-face:hover {
+  transform: scale(1.14);
+}
+.zr-planet-selected .zr-planet-face {
+  border-color: var(--color-accent);
+  box-shadow: 0 0 22px 2px var(--accent-glow);
+}
+.zr-lan-pill {
+  font-family: var(--font-mono);
+  font-size: 8px;
+  letter-spacing: 0.3px;
+  color: var(--color-accent);
+  background: var(--accent-soft);
+  border: 1px solid var(--color-accent);
+  border-radius: 20px;
+  padding: 0 5px;
+}
+.zr-star {
+  position: absolute;
+  border-radius: 50%;
+  background: #fff;
+  display: var(--star-display);
+  animation: zr-twinkle var(--tw, 2s) ease-in-out infinite alternate;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   Chat dock
+   ══════════════════════════════════════════════════════════════ */
+.zr-tag {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  padding: 1px 7px;
+  border-radius: 20px;
+}
+.zr-tag-bcast {
+  color: var(--color-accent);
+  background: var(--accent-soft);
+}
+.zr-tag-direct {
+  color: var(--direct);
+  background: var(--direct-soft);
+}
+.zr-ret {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--faint);
+  border: 1px solid var(--color-border);
+  border-radius: 20px;
+  padding: 1px 7px;
+}
+.zr-ret-forever {
+  color: var(--color-accent);
+  border-color: var(--color-accent);
+  background: var(--accent-soft);
+}
+.zr-bubble {
+  font-size: 13px;
+  line-height: 1.45;
+  padding: 9px 12px;
+  border-radius: 15px;
+  border: 1px solid var(--color-border);
+  background: var(--panel-2);
+  word-break: break-word;
+  white-space: pre-wrap;
+}
+.zr-bubble-in {
+  border-top-left-radius: 5px;
+}
+.zr-bubble-out {
+  border-top-right-radius: 5px;
+  background: var(--accent-soft);
+  border-color: var(--color-accent);
+}
+
+/* terminal-style code card (dark in both themes) */
+.zr-term {
+  background: #0d0d0d;
+  border: 1px solid #262626;
+  border-radius: 10px;
+  overflow: hidden;
+  cursor: zoom-in;
+}
+.zr-term-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px;
+  background: #171717;
+  border-bottom: 1px solid #262626;
+}
+.zr-term-dot {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+}
+.zr-term-name {
+  margin-left: 8px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: #8a8a8a;
+}
+.zr-term-copy {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: #8a8a8a;
+  background: transparent;
+  border: 1px solid #333333;
+  border-radius: 6px;
+  padding: 2px 8px;
+  cursor: pointer;
+}
+.zr-term-copy:hover {
+  color: #f5f5f5;
+  border-color: #555555;
+}
+.zr-term-body {
+  position: relative;
+  padding: 10px 12px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.55;
+  color: #e5e5e5;
+  overflow: hidden;
+  max-height: 118px;
+  white-space: pre;
+}
+.zr-term-body-full {
+  max-height: 74vh;
+  overflow: auto;
+}
+.zr-term-fade {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 40px;
+  background: linear-gradient(transparent, #0d0d0d);
+  pointer-events: none;
+}
+
+/* sticky note */
+.zr-note {
+  position: relative;
+  max-width: 232px;
+  padding: 16px 15px 13px;
+  border-radius: 3px;
+  color: #2a2a2a;
+  font-family: var(--font-note);
+  font-size: 19px;
+  line-height: 1.25;
+  background: var(--note-yellow);
+  box-shadow: 0 10px 22px -10px rgba(0, 0, 0, 0.45);
+  cursor: zoom-in;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+.zr-note-pink {
+  background: var(--note-pink);
+}
+.zr-note-green {
+  background: var(--note-green);
+}
+.zr-note-blue {
+  background: var(--note-blue);
+}
+.zr-note::before {
+  content: "";
+  position: absolute;
+  top: -7px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #525252;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.35);
+}
+.zr-note-by {
+  display: block;
+  margin-top: 8px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: rgba(0, 0, 0, 0.5);
+}
+.zr-note-big {
+  max-width: 540px;
+  width: 88vw;
+  font-size: 34px;
+  line-height: 1.3;
+  padding: 46px 42px 36px;
+  cursor: default;
+}
+
+/* file card */
+.zr-filecard {
+  padding: 11px;
+  min-width: 210px;
+  border-radius: 15px;
+  border: 1px solid var(--color-border);
+  background: var(--panel-2);
+}
+.zr-fc-ico {
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  display: grid;
+  place-items: center;
+  background: var(--accent-soft);
+  color: var(--color-accent);
+  flex-shrink: 0;
+}
+.zr-bar {
+  height: 5px;
+  border-radius: 3px;
+  background: var(--panel-2);
+  overflow: hidden;
+}
+.zr-bar > i {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent-2), var(--color-accent));
+}
+
+/* ══════════════════════════════════════════════════════════════
+   Composer
+   ══════════════════════════════════════════════════════════════ */
+.zr-sa-btn,
+.zr-rt-btn {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--color-muted-foreground);
+  background: var(--panel-2);
+  border: 1px solid transparent;
+  border-radius: 8px;
+  padding: 4px 9px;
+  cursor: pointer;
+}
+.zr-rt-btn {
+  font-size: 10px;
+  padding: 3px 8px;
+  border-radius: 7px;
+}
+.zr-sa-active {
+  color: var(--color-accent);
+  background: var(--accent-soft);
+  border-color: var(--color-accent);
+}
+.zr-to-chip {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--color-accent);
+  background: var(--accent-soft);
+  border: 1px solid var(--color-accent);
+  border-radius: 20px;
+  padding: 2px 10px;
+}
+.zr-input-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  background: var(--panel-2);
+  border: 1px solid var(--color-border);
+  border-radius: 14px;
+  padding: 6px 6px 6px 10px;
+}
+.zr-input-row:focus-within {
+  border-color: var(--color-accent);
+}
+.zr-input-row textarea {
+  flex: 1;
+  resize: none;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: var(--color-foreground);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  padding: 6px 0;
+  max-height: 120px;
+}
+.zr-compose-code textarea {
+  font-family: var(--font-mono);
+  font-size: 13px;
+}
+.zr-compose-note textarea {
+  font-family: var(--font-note);
+  font-size: 18px;
+}
+.zr-nc {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  cursor: pointer;
+  border: 2px solid transparent;
+}
+.zr-nc-active {
+  border-color: var(--color-foreground);
+}
+
+/* ══════════════════════════════════════════════════════════════
+   Side board (Notes / Code / Files) tabs
+   ══════════════════════════════════════════════════════════════ */
+.zr-sb-tab {
+  flex: 1;
+  padding: 12px 6px;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--color-muted-foreground);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  cursor: pointer;
+}
+.zr-sb-tab-active {
+  color: var(--color-accent);
+  border-bottom-color: var(--color-accent);
 }

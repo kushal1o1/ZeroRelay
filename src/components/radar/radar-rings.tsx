@@ -7,16 +7,18 @@ interface RadarRingsProps {
   height: number;
   center: { x: number; y: number };
   points: RadarPoint[];
-  selectedPeerId: string | null;
+  selectedPeerIds: string[];
 }
 
 /** Background geometry: dashed rings, a rotating radar sweep, and center→peer
  * connector lines. Purely decorative (pointer-events-none) and shares the same
  * coordinate space as the nodes via the layout hook. */
-export function RadarRings({ width, height, center, points, selectedPeerId }: RadarRingsProps) {
-  const minDim = Math.min(width, height);
-  const baseRadius = minDim * 0.2;
-  const ringGap = minDim * 0.16;
+export function RadarRings({ width, height, center, points, selectedPeerIds }: RadarRingsProps) {
+  // Keep in sync with MAX_DIM / ring factors in use-radar-layout so the rings +
+  // sweep line up exactly with the peer dots.
+  const minDim = Math.min(width, height, 820);
+  const baseRadius = minDim * 0.3;
+  const ringGap = minDim * 0.1;
   const ringSteps = [0, 1, 2];
   const sweepSize = (baseRadius + ringGap * 2) * 2;
 
@@ -29,17 +31,37 @@ export function RadarRings({ width, height, center, points, selectedPeerId }: Ra
         style={{ left: center.x, top: center.y, transform: "translate(-50%, -50%)" }}
       >
         <div
-          className="zr-sweep rounded-full opacity-50"
+          className="zr-sweep rounded-full opacity-30"
           style={{
             width: sweepSize,
             height: sweepSize,
             background:
-              "conic-gradient(from 0deg, transparent 0deg 300deg, var(--color-signal) 356deg, transparent 360deg)",
+              "conic-gradient(from 0deg, transparent 0deg 250deg, var(--color-signal) 358deg, transparent 360deg)",
             maskImage: "radial-gradient(circle, #000 0%, #000 69%, transparent 71%)",
             WebkitMaskImage: "radial-gradient(circle, #000 0%, #000 69%, transparent 71%)",
           }}
         />
       </div>
+
+      {/* continuous radar ping — expanding rings from the centre (like the homepage).
+          Base opacity 0 keeps them invisible if animation is disabled (reduced motion). */}
+      {[0, 1.7].map((delay) => (
+        <span
+          key={`ping-${delay}`}
+          aria-hidden
+          className="zr-ping pointer-events-none absolute rounded-full border"
+          style={{
+            left: center.x,
+            top: center.y,
+            width: sweepSize,
+            height: sweepSize,
+            borderColor: "var(--color-signal)",
+            opacity: 0,
+            transform: "translate(-50%, -50%) scale(0.32)",
+            animationDelay: `${delay}s`,
+          }}
+        />
+      ))}
 
       <svg
         aria-hidden
@@ -61,7 +83,7 @@ export function RadarRings({ width, height, center, points, selectedPeerId }: Ra
           />
         ))}
         {points.map((p) => {
-          const on = selectedPeerId === p.peer.id;
+          const on = selectedPeerIds.includes(p.peer.id);
           return (
             <line
               key={p.peer.id}
