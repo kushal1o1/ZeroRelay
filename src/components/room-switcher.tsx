@@ -1,9 +1,21 @@
 "use client";
 
 import { useRoomContext } from "@/components/room-provider";
+import { Button } from "@/components/ui/button";
+import { Dialog } from "@/components/ui/dialog";
 import { useRoomStore } from "@/stores/room-store";
 import { useUIStore } from "@/stores/ui-store";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+
+const MENU_W = 176; // w-44
+
+interface MenuState {
+  roomId: string;
+  roomName: string;
+  top: number;
+  left: number;
+}
 
 export function RoomSwitcher() {
   const { rooms, activeRoomId, setActiveRoomId, setDialog, removeRoom } = useUIStore();
@@ -11,25 +23,11 @@ export function RoomSwitcher() {
   const connected = useRoomStore((s) => s.connected);
   const connectedRoomId = useRoomStore((s) => s.roomId);
   const peerId = useRoomStore((s) => s.peerId);
-  const peers = useRoomStore((s) => s.peers);
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) {
-        setOpen(false);
-      }
-    };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, [open]);
-
-  const activeRoom = rooms.find((r) => r.id === activeRoomId);
+  const [menu, setMenu] = useState<MenuState | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<{ id: string; name: string } | null>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
 
   const handleSwitch = (roomId: string) => {
-    setOpen(false);
     setActiveRoomId(roomId);
     if (roomId !== connectedRoomId) {
       const room = rooms.find((r) => r.id === roomId);
@@ -39,137 +37,234 @@ export function RoomSwitcher() {
 
   const handleLeave = useCallback(
     (roomId: string) => {
-      setOpen(false);
       if (roomId === connectedRoomId) leaveRoom();
       removeRoom(roomId);
     },
     [connectedRoomId, leaveRoom, removeRoom],
   );
 
-  const handleDelete = useCallback(
-    (roomId: string) => {
-      setOpen(false);
-      if (window.confirm("Delete this room?")) {
-        sendSignaling({ type: "delete-room", roomId, peerId });
-        removeRoom(roomId);
-      }
-    },
-    [peerId, sendSignaling, removeRoom],
-  );
+  // Delete is destructive → confirm in a dialog rather than a native alert.
+  const doDelete = useCallback(() => {
+    if (!confirmDelete) return;
+    sendSignaling({ type: "delete-room", roomId: confirmDelete.id, peerId });
+    removeRoom(confirmDelete.id);
+    setConfirmDelete(null);
+  }, [confirmDelete, peerId, sendSignaling, removeRoom]);
+
+  // Close the actions menu on outside click / Escape / scroll / resize.
+  useEffect(() => {
+    if (!menu) return;
+    const onDown = (e: MouseEvent) => {
+      const t = e.target as HTMLElement;
+      if (menuRef.current?.contains(t)) return;
+      if (t.closest("[data-room-menu-trigger]")) return; // let the trigger toggle
+      setMenu(null);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setMenu(null);
+    };
+    const close = () => setMenu(null);
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
+    window.addEventListener("scroll", close, true);
+    window.addEventListener("resize", close);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("keydown", onKey);
+      window.removeEventListener("scroll", close, true);
+      window.removeEventListener("resize", close);
+    };
+  }, [menu]);
+
+  const toggleMenu = (roomId: string, roomName: string, e: React.MouseEvent) => {
+    if (menu?.roomId === roomId) {
+      setMenu(null);
+      return;
+    }
+    const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    setMenu({
+      roomId,
+      roomName,
+      top: r.bottom + 6,
+      left: Math.max(8, r.right - MENU_W),
+    });
+  };
+
+  const ring =
+    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-foreground/40 focus-visible:ring-offset-1 focus-visible:ring-offset-background";
+
+  const activeRoom = rooms.find((r) => r.id === activeRoomId);
+  const activeManageable = !!activeRoom && activeRoom.id !== "global";
 
   return (
-    <div ref={ref} className="relative">
-      <div className="flex items-center gap-2">
-        <span className="hidden sm:inline shrink-0 font-mono text-sm font-bold tracking-tight text-accent">
-          0Relay
-        </span>
+    <nav aria-label="Rooms" className="flex items-center py-1">
+      {/* Desktop: a tab per room */}
+      <div className="hidden items-center gap-1.5 md:flex">
+        {rooms.map((room) => {
+          const isActive = room.id === activeRoomId;
+          const isGlobal = room.id === "global";
+          const live = isGlobal || (room.id === connectedRoomId && connected);
+          return (
+            <div key={room.id} className="flex shrink-0 items-center gap-0.5">
+              <button
+                type="button"
+                onClick={() => handleSwitch(room.id)}
+                aria-current={isActive ? "page" : undefined}
+                title={room.name}
+                className={`zr-tab min-h-[34px] ${isActive ? "zr-tab-active" : ""} ${ring}`}
+              >
+                <span className={`zr-dot ${live ? "zr-dot-live" : ""}`} aria-hidden="true" />
+                <span className="max-w-[10rem] truncate">{room.name}</span>
+                {room.hasPassword && (
+                  <span title="Password protected" aria-label="Password protected">
+                    🔒
+                  </span>
+                )}
+              </button>
 
-        <button
-          type="button"
-          onClick={() => setOpen(!open)}
-          className="flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-sm transition-colors hover:bg-muted"
-        >
-          <span
-            className={`size-2 shrink-0 rounded-full ${
-              activeRoomId === "global"
-                ? "bg-signal zr-pulse"
-                : connected
-                  ? "bg-green-500"
-                  : "bg-destructive"
-            }`}
-          />
-          <span className="text-foreground">{activeRoom?.name || "Global"}</span>
-          <span className="hidden sm:inline text-xs text-muted-foreground">
-            {peers.length > 0 && `(${peers.length})`}
-          </span>
-          <svg
-            className="size-3 text-muted-foreground"
-            aria-hidden="true"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-          </svg>
-        </button>
+              {/* Actions live behind a kebab on the active, non-global room */}
+              {isActive && !isGlobal && (
+                <button
+                  type="button"
+                  data-room-menu-trigger
+                  onClick={(e) => toggleMenu(room.id, room.name, e)}
+                  aria-haspopup="menu"
+                  aria-expanded={menu?.roomId === room.id}
+                  aria-label={`Actions for ${room.name}`}
+                  title="Room options"
+                  className={`grid size-8 place-items-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground ${
+                    menu?.roomId === room.id ? "bg-muted text-foreground" : ""
+                  } ${ring}`}
+                >
+                  <span aria-hidden="true" className="text-base leading-none">
+                    ⋮
+                  </span>
+                </button>
+              )}
+            </div>
+          );
+        })}
+
+        <span aria-hidden="true" className="mx-1 h-5 w-px shrink-0 bg-border" />
 
         <button
           type="button"
           onClick={() => setDialog("create")}
-          className="hidden sm:inline shrink-0 rounded-lg px-2 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          aria-label="Create a new room"
+          className={`zr-tab min-h-[34px] shrink-0 ${ring}`}
         >
           + New
         </button>
         <button
           type="button"
           onClick={() => setDialog("join")}
-          className="hidden sm:inline shrink-0 rounded-lg px-2 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          aria-label="Join a room"
+          className={`zr-tab min-h-[34px] shrink-0 ${ring}`}
         >
           Join
         </button>
       </div>
 
-      {open && (
-        <div className="absolute left-0 top-full z-50 mt-1 w-64 overflow-hidden rounded-lg border border-border bg-card shadow-lg">
-          <div className="max-h-64 overflow-y-auto">
-            {rooms.length === 0 && (
-              <p className="px-3 py-4 text-center text-sm text-muted-foreground">No rooms</p>
-            )}
-            {rooms.map((room) => {
-              const isActive = activeRoomId === room.id;
-              return (
-                <div
-                  key={room.id}
-                  className={`flex items-center gap-1 px-1 ${isActive ? "bg-accent/5" : ""}`}
-                >
-                  <button
-                    type="button"
-                    onClick={() => handleSwitch(room.id)}
-                    className="flex min-w-0 flex-1 items-center gap-2 px-2 py-2 text-left text-sm transition-colors hover:bg-muted"
-                  >
-                    <span
-                      className={`size-2 shrink-0 rounded-full ${
-                        room.id === "global"
-                          ? "bg-signal"
-                          : isActive && connected
-                            ? "bg-green-500"
-                            : "bg-muted-foreground"
-                      }`}
-                    />
-                    <span className="truncate text-foreground">{room.name}</span>
-                    {room.hasPassword && (
-                      <span className="shrink-0 text-xs text-muted-foreground">🔒</span>
-                    )}
-                    {isActive && connected && (
-                      <span className="shrink-0 text-xs text-muted-foreground">
-                        {peers.length} peer{peers.length !== 1 ? "s" : ""}
-                      </span>
-                    )}
-                  </button>
-                  {room.id !== "global" && (
-                    <div className="flex shrink-0 items-center gap-0.5 pr-1">
-                      <button
-                        type="button"
-                        onClick={() => handleLeave(room.id)}
-                        className="rounded px-1.5 py-1 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                      >
-                        Leave
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleDelete(room.id)}
-                        className="rounded px-1.5 py-1 text-xs text-destructive transition-colors hover:bg-destructive/10"
-                      >
-                        Del
-                      </button>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
+      {/* Mobile: a compact dropdown + actions (tabs don't fit) */}
+      <div className="flex items-center gap-1 md:hidden">
+        <select
+          value={activeRoomId ?? "global"}
+          onChange={(e) => handleSwitch(e.target.value)}
+          aria-label="Switch room"
+          className={`min-h-[34px] max-w-[8.5rem] rounded-lg border border-border bg-card px-2 font-mono text-sm text-foreground ${ring}`}
+        >
+          {rooms.map((room) => (
+            <option key={room.id} value={room.id}>
+              {room.name}
+              {room.hasPassword ? " 🔒" : ""}
+            </option>
+          ))}
+        </select>
+        {activeManageable && activeRoom && (
+          <button
+            type="button"
+            data-room-menu-trigger
+            onClick={(e) => toggleMenu(activeRoom.id, activeRoom.name, e)}
+            aria-haspopup="menu"
+            aria-expanded={menu?.roomId === activeRoom.id}
+            aria-label={`Actions for ${activeRoom.name}`}
+            title="Room options"
+            className={`grid size-8 shrink-0 place-items-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground ${ring}`}
+          >
+            <span aria-hidden="true" className="text-base leading-none">
+              ⋮
+            </span>
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={() => setDialog("create")}
+          aria-label="Create a new room"
+          title="New room"
+          className={`grid size-8 shrink-0 place-items-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground ${ring}`}
+        >
+          ＋
+        </button>
+        <button
+          type="button"
+          onClick={() => setDialog("join")}
+          aria-label="Join a room"
+          title="Join room"
+          className={`grid size-8 shrink-0 place-items-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground ${ring}`}
+        >
+          ⤵
+        </button>
+      </div>
+
+      {menu &&
+        createPortal(
+          <div
+            ref={menuRef}
+            role="menu"
+            aria-label={`${menu.roomName} options`}
+            style={{ position: "fixed", top: menu.top, left: menu.left, width: MENU_W }}
+            className="z-[60] overflow-hidden rounded-xl border border-border bg-card shadow-lg"
+          >
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                handleLeave(menu.roomId);
+                setMenu(null);
+              }}
+              className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm text-foreground transition-colors hover:bg-muted focus-visible:bg-muted focus-visible:outline-none"
+            >
+              Leave room
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                setConfirmDelete({ id: menu.roomId, name: menu.roomName });
+                setMenu(null);
+              }}
+              className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm text-destructive transition-colors hover:bg-destructive/10 focus-visible:bg-destructive/10 focus-visible:outline-none"
+            >
+              Delete room
+            </button>
+          </div>,
+          document.body,
+        )}
+
+      <Dialog open={!!confirmDelete} onClose={() => setConfirmDelete(null)} title="Delete room?">
+        <p className="text-sm text-muted-foreground">
+          Delete <span className="font-medium text-foreground">{confirmDelete?.name}</span>? This
+          removes it for everyone and can't be undone.
+        </p>
+        <div className="mt-5 flex justify-end gap-2">
+          <Button variant="secondary" onClick={() => setConfirmDelete(null)}>
+            Cancel
+          </Button>
+          <Button variant="destructive" onClick={doDelete}>
+            Delete room
+          </Button>
         </div>
-      )}
-    </div>
+      </Dialog>
+    </nav>
   );
 }

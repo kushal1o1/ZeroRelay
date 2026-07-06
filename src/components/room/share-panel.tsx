@@ -1,208 +1,246 @@
 "use client";
 
-import { Button } from "@/components/ui/button";
 import { formatSize } from "@/lib/format";
-import type { ItemType, Retention } from "@/types/message";
-import { ITEM_TYPE_LABELS, RETENTION_LABELS } from "@/types/message";
+import { type ItemType, RETENTION_LABELS, type Retention } from "@/types/message";
 import { useEffect, useRef, useState } from "react";
 
-interface SharePanelProps {
-  targetName: string | null;
+interface ComposerProps {
+  /** Everyone in the room except me — pickable recipients. */
+  peers: { id: string; name: string }[];
+  selectedPeerIds: string[];
+  onTogglePeer: (id: string) => void;
+  onClearTargets: () => void;
   onSend: (text: string, type: ItemType, retention: Retention) => void;
   onSendFile: (file: File, retention: Retention) => void;
 }
 
-const TYPES: ItemType[] = ["text", "code", "note", "file"];
+const TYPES: { k: ItemType; label: string }[] = [
+  { k: "text", label: "💬 Text" },
+  { k: "note", label: "🗒️ Note" },
+  { k: "code", label: "⌨️ Code" },
+  { k: "file", label: "📄 File" },
+];
 const RETENTIONS: Retention[] = ["session", "5min", "1h", "1d", "forever"];
 
-export function SharePanel({ targetName, onSend, onSendFile }: SharePanelProps) {
+const PLACEHOLDER: Record<ItemType, string> = {
+  text: "Message everyone…",
+  note: "Write a sticky note…",
+  code: "Paste code…",
+  file: "",
+};
+
+export function Composer({
+  peers,
+  selectedPeerIds,
+  onTogglePeer,
+  onClearTargets,
+  onSend,
+  onSendFile,
+}: ComposerProps) {
   const [text, setText] = useState("");
   const [type, setType] = useState<ItemType>("text");
   const [retention, setRetention] = useState<Retention>("session");
-  const [dragOver, setDragOver] = useState(false);
   const [staged, setStaged] = useState<File | null>(null);
-  const [preview, setPreview] = useState<string | null>(null);
+  const [pickerOpen, setPickerOpen] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+  const pickerRef = useRef<HTMLDivElement>(null);
 
+  // 0 selected = broadcast to everyone; 1 = that person; many = direct to each.
+  const targetNames = peers.filter((p) => selectedPeerIds.includes(p.id)).map((p) => p.name);
+  const targetShort =
+    targetNames.length === 0
+      ? "Everyone"
+      : targetNames.length === 1
+        ? targetNames[0]
+        : `${targetNames.length} people`;
+  const targetLabel = targetShort;
+
+  // Close the recipient picker on outside click / Escape.
   useEffect(() => {
-    if (staged?.type.startsWith("image/")) {
-      const url = URL.createObjectURL(staged);
-      setPreview(url);
-      return () => URL.revokeObjectURL(url);
-    }
-    setPreview(null);
-  }, [staged]);
+    if (!pickerOpen) return;
+    const onDown = (e: MouseEvent) => {
+      if (!pickerRef.current?.contains(e.target as Node)) setPickerOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setPickerOpen(false);
+    };
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [pickerOpen]);
 
-  const handleSendText = () => {
+  const sendText = () => {
     if (!text.trim()) return;
     onSend(text, type, retention);
     setText("");
   };
-
   const confirmFile = () => {
     if (staged) onSendFile(staged, retention);
     setStaged(null);
   };
 
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    setDragOver(false);
-    const file = e.dataTransfer.files?.[0];
-    if (file) {
-      setStaged(file);
-      setType("file");
-    }
-  };
-
   return (
-    <div className="space-y-3 rounded-xl border border-border bg-card p-3 sm:p-4">
-      <p className="text-xs text-muted-foreground">
-        Sharing to: <span className="font-medium text-foreground">{targetName || "Everyone"}</span>
-      </p>
-
-      <div className="flex flex-wrap gap-2 sm:gap-4">
-        <fieldset>
-          <legend className="mb-1 text-[10px] uppercase tracking-wider text-muted-foreground">
-            Type
-          </legend>
-          <div className="flex flex-wrap gap-1">
-            {TYPES.map((t) => (
-              <button
-                key={t}
-                type="button"
-                onClick={() => setType(t)}
-                className={`rounded-md px-2 py-1 text-xs font-medium transition-colors ${
-                  type === t
-                    ? "bg-accent text-accent-foreground"
-                    : "bg-muted text-muted-foreground hover:bg-muted/80"
-                }`}
-              >
-                {ITEM_TYPE_LABELS[t]}
-              </button>
-            ))}
-          </div>
-        </fieldset>
-
-        <fieldset>
-          <legend className="mb-1 text-[10px] uppercase tracking-wider text-muted-foreground">
-            Retain
-          </legend>
-          <div className="flex flex-wrap gap-1">
-            {RETENTIONS.map((r) => (
-              <button
-                key={r}
-                type="button"
-                onClick={() => setRetention(r)}
-                className={`rounded-md px-2 py-1 text-xs font-medium transition-colors ${
-                  retention === r
-                    ? "bg-accent text-accent-foreground"
-                    : "bg-muted text-muted-foreground hover:bg-muted/80"
-                }`}
-              >
-                {RETENTION_LABELS[r]}
-              </button>
-            ))}
-          </div>
-        </fieldset>
-      </div>
-
-      {type === "file" || staged ? (
-        <div className="space-y-3">
-          {staged ? (
-            <div className="space-y-3 rounded-xl border border-border p-3">
-              {preview ? (
-                <div
-                  role="img"
-                  aria-label={staged.name}
-                  className="h-40 w-full rounded-lg bg-contain bg-center bg-no-repeat"
-                  style={{ backgroundImage: `url(${preview})` }}
-                />
-              ) : (
-                <div className="flex items-center gap-2 text-sm text-accent">
-                  <span className="truncate">{staged.name}</span>
-                </div>
-              )}
-              <p className="text-xs text-muted-foreground">
-                {staged.name} · {formatSize(staged.size)}
-              </p>
-              <div className="flex gap-2">
-                <Button onClick={confirmFile} className="flex-1">
-                  Send to {targetName || "Everyone"}
-                </Button>
-                <Button variant="ghost" onClick={() => setStaged(null)}>
-                  Cancel
-                </Button>
-              </div>
-            </div>
-          ) : (
-            <button
-              type="button"
-              onKeyDown={(e) => {
-                if (e.key === "Enter" || e.key === " ") {
-                  e.preventDefault();
-                  fileRef.current?.click();
-                }
-              }}
-              onDragOver={(e) => {
-                e.preventDefault();
-                setDragOver(true);
-              }}
-              onDragLeave={() => setDragOver(false)}
-              onDrop={handleDrop}
-              onClick={() => fileRef.current?.click()}
-              className={`flex w-full cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed p-6 transition-colors ${
-                dragOver ? "border-signal bg-signal/5" : "border-border hover:border-accent/50"
-              }`}
+    <div className="border-t border-border p-3">
+      <div className="mb-2 flex items-center gap-1.5 text-[11px] text-muted-foreground">
+        <span>Sending to</span>
+        <div ref={pickerRef} className="relative">
+          <button
+            type="button"
+            onClick={() => setPickerOpen((o) => !o)}
+            aria-haspopup="listbox"
+            aria-expanded={pickerOpen}
+            title="Choose who receives this"
+            className="zr-to-chip inline-flex items-center gap-1"
+          >
+            {targetLabel}
+            <span aria-hidden="true">▾</span>
+          </button>
+          {pickerOpen && (
+            <div
+              role="menu"
+              aria-label="Recipients"
+              className="absolute bottom-full left-0 z-40 mb-2 max-h-64 w-56 overflow-y-auto rounded-xl border border-border bg-card p-1.5 shadow-lg"
             >
-              <p className="text-sm text-muted-foreground">
-                Drop a file to preview, or click to browse
-              </p>
-              <input
-                ref={fileRef}
-                type="file"
-                className="hidden"
-                onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  if (file) {
-                    setStaged(file);
-                    setType("file");
-                  }
-                  e.target.value = "";
-                }}
-              />
-            </button>
+              <button
+                type="button"
+                role="menuitemradio"
+                aria-checked={selectedPeerIds.length === 0}
+                onClick={onClearTargets}
+                className="flex w-full items-center justify-between gap-2 rounded-lg px-2.5 py-2 text-left text-sm text-foreground hover:bg-muted"
+              >
+                <span>Everyone</span>
+                {selectedPeerIds.length === 0 && <span aria-hidden="true">✓</span>}
+              </button>
+              {peers.length > 0 && <div className="my-1 h-px bg-border" />}
+              {peers.map((p) => {
+                const on = selectedPeerIds.includes(p.id);
+                return (
+                  <button
+                    key={p.id}
+                    type="button"
+                    role="menuitemcheckbox"
+                    aria-checked={on}
+                    onClick={() => onTogglePeer(p.id)}
+                    className="flex w-full items-center justify-between gap-2 rounded-lg px-2.5 py-2 text-left text-sm text-foreground hover:bg-muted"
+                  >
+                    <span className="truncate">{p.name}</span>
+                    {on && <span aria-hidden="true">✓</span>}
+                  </button>
+                );
+              })}
+              {peers.length === 0 && (
+                <p className="px-2 py-3 text-center text-[11px] text-muted-foreground">
+                  No one else here yet
+                </p>
+              )}
+            </div>
           )}
         </div>
-      ) : (
-        <>
-          <div className="flex gap-2">
-            <textarea
-              value={text}
-              onChange={(e) => setText(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey) {
-                  e.preventDefault();
-                  handleSendText();
-                }
-              }}
-              placeholder={
-                type === "code"
-                  ? "Paste code…"
-                  : type === "note"
-                    ? "Write a note…"
-                    : "Type a message…"
-              }
-              rows={3}
-              className={`flex-1 resize-none rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-accent/50 ${
-                type === "code" ? "font-mono" : ""
-              }`}
-            />
-            <Button onClick={handleSendText} disabled={!text.trim()} className="self-end">
-              Send
-            </Button>
+      </div>
+
+      <div className="mb-2 flex flex-wrap items-center gap-1.5">
+        {TYPES.map((t) => (
+          <button
+            key={t.k}
+            type="button"
+            onClick={() => setType(t.k)}
+            className={`zr-sa-btn ${type === t.k ? "zr-sa-active" : ""}`}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      <div className="mb-2 flex flex-wrap items-center gap-1.5">
+        <span className="text-[11px] text-muted-foreground">Keep for</span>
+        {RETENTIONS.map((r) => (
+          <button
+            key={r}
+            type="button"
+            onClick={() => setRetention(r)}
+            className={`zr-rt-btn ${retention === r ? "zr-sa-active" : ""}`}
+          >
+            {r === "forever" ? "∞" : RETENTION_LABELS[r]}
+          </button>
+        ))}
+      </div>
+
+      {type === "file" ? (
+        staged ? (
+          <div className="rounded-xl border border-border p-3">
+            <div className="truncate text-sm text-accent">{staged.name}</div>
+            <div className="text-[11px] text-muted-foreground">{formatSize(staged.size)}</div>
+            <div className="mt-2 flex gap-2">
+              <button
+                type="button"
+                onClick={confirmFile}
+                className="flex-1 rounded-lg bg-accent px-3 py-1.5 text-sm font-semibold text-accent-foreground"
+              >
+                Send to {targetShort}
+              </button>
+              <button
+                type="button"
+                onClick={() => setStaged(null)}
+                className="rounded-lg px-3 py-1.5 text-sm text-muted-foreground"
+              >
+                Cancel
+              </button>
+            </div>
           </div>
-        </>
+        ) : (
+          <button
+            type="button"
+            onClick={() => fileRef.current?.click()}
+            className="flex w-full flex-col items-center rounded-xl border-2 border-dashed border-border p-5 text-sm text-muted-foreground transition-colors hover:border-accent/50"
+          >
+            Drop a file or click to browse
+            <input
+              ref={fileRef}
+              type="file"
+              className="hidden"
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) setStaged(f);
+                e.target.value = "";
+              }}
+            />
+          </button>
+        )
+      ) : (
+        <div
+          className={`zr-input-row ${
+            type === "code" ? "zr-compose-code" : type === "note" ? "zr-compose-note" : ""
+          }`}
+        >
+          <textarea
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                sendText();
+              }
+            }}
+            rows={type === "text" ? 1 : 3}
+            placeholder={PLACEHOLDER[type]}
+          />
+          <button
+            type="button"
+            onClick={sendText}
+            disabled={!text.trim()}
+            className="size-8 shrink-0 self-end rounded-lg bg-accent text-sm text-accent-foreground disabled:opacity-40"
+          >
+            ➤
+          </button>
+        </div>
       )}
+
+      <div className="mt-1.5 text-center text-[10px] text-muted-foreground">
+        Enter to send · Shift+Enter for newline
+      </div>
     </div>
   );
 }
