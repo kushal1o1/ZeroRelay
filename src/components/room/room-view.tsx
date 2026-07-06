@@ -4,18 +4,15 @@ import { SharedFeed } from "@/components/room/message-feed";
 import { PresenceList } from "@/components/room/presence-list";
 import { SharePanel } from "@/components/room/share-panel";
 import { useRoomStore } from "@/stores/room-store";
-import { useUIStore } from "@/stores/ui-store";
 import type { ItemType, Retention } from "@/types/message";
 import { useEffect, useState } from "react";
 
 export function RoomView() {
   const { peers, connected, error } = useRoomStore();
-  const { activeRoomId } = useUIStore();
   const { shareText, shareFile } = useRoomContext();
   const [selectedPeerId, setSelectedPeerId] = useState<string | null>(null);
   const targetPeer = selectedPeerId ? peers.find((p) => p.id === selectedPeerId) : null;
 
-  // Reset selection when the selected peer leaves or the room changes.
   useEffect(() => {
     if (selectedPeerId && !peers.some((p) => p.id === selectedPeerId)) {
       setSelectedPeerId(null);
@@ -29,36 +26,38 @@ export function RoomView() {
 
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
-      <header className="flex items-center justify-between border-b border-border px-6 py-3">
-        <div className="flex items-center gap-3">
-          <div>
-            <h1 className="text-lg font-semibold text-foreground">
-              {activeRoomId === "global" ? "Global" : activeRoomId}
-            </h1>
-            <p className="text-xs text-muted-foreground">
-              {connected
-                ? `${peers.length} peer${peers.length !== 1 ? "s" : ""} online`
-                : "Connecting..."}
-            </p>
-          </div>
-        </div>
-      </header>
       {error && (
-        <div className="mx-6 mt-4 rounded-lg bg-destructive/10 px-4 py-3 text-sm text-destructive">
+        <div className="mx-4 mt-2 rounded-lg bg-destructive/10 px-4 py-2 text-sm text-destructive">
           {error}
         </div>
       )}
-      <div className="flex flex-1 gap-6 overflow-hidden p-6">
-        <div className="w-72 shrink-0 overflow-y-auto space-y-6">
-          <PresenceList selectedPeerId={selectedPeerId} onSelectPeer={setSelectedPeerId} />
-          <SharedFeed />
+      {connected && peers.length === 0 && !error && (
+        <div className="mx-4 mt-2 rounded-lg bg-muted px-4 py-2 text-center text-sm text-muted-foreground">
+          No peers in this room
         </div>
-        <div className="flex-1 overflow-y-auto">
-          <SharePanel
-            targetName={targetPeer?.name || null}
-            onSend={handleSend}
-            onSendFile={handleSendFile}
-          />
+      )}
+      <div className="flex flex-1 flex-col gap-2 overflow-hidden p-2 sm:flex-row sm:gap-6 sm:p-6">
+        <div className="flex flex-1 flex-col gap-2 overflow-hidden min-h-0 sm:flex-row sm:gap-6">
+          <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-hidden sm:w-72 sm:shrink-0">
+            <div className="hidden sm:block overflow-y-auto">
+              <PresenceList selectedPeerId={selectedPeerId} onSelectPeer={setSelectedPeerId} />
+            </div>
+            <div className="flex-1 overflow-y-auto min-h-0">
+              <SharedFeed />
+            </div>
+          </div>
+          <div className="shrink-0 sm:w-auto sm:flex-1 sm:overflow-y-auto">
+            {selectedPeerId && (
+              <div className="mb-2 rounded-lg bg-muted px-2 py-1 text-center text-xs text-muted-foreground sm:hidden">
+                Sharing to: {targetPeer?.name || "selected peer"}
+              </div>
+            )}
+            <SharePanel
+              targetName={targetPeer?.name || null}
+              onSend={handleSend}
+              onSendFile={handleSendFile}
+            />
+          </div>
         </div>
       </div>
     </div>

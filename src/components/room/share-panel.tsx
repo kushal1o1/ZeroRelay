@@ -55,23 +55,23 @@ export function SharePanel({ targetName, onSend, onSendFile }: SharePanelProps) 
   };
 
   return (
-    <div className="space-y-3 rounded-xl border border-border bg-card p-4">
+    <div className="space-y-3 rounded-xl border border-border bg-card p-3 sm:p-4">
       <p className="text-xs text-muted-foreground">
         Sharing to: <span className="font-medium text-foreground">{targetName || "Everyone"}</span>
       </p>
 
-      <div className="flex flex-wrap gap-4">
+      <div className="flex flex-wrap gap-2 sm:gap-4">
         <fieldset>
           <legend className="mb-1 text-[10px] uppercase tracking-wider text-muted-foreground">
             Type
           </legend>
-          <div className="flex gap-1">
+          <div className="flex flex-wrap gap-1">
             {TYPES.map((t) => (
               <button
                 key={t}
                 type="button"
                 onClick={() => setType(t)}
-                className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
+                className={`rounded-md px-2 py-1 text-xs font-medium transition-colors ${
                   type === t
                     ? "bg-accent text-accent-foreground"
                     : "bg-muted text-muted-foreground hover:bg-muted/80"
@@ -87,13 +87,13 @@ export function SharePanel({ targetName, onSend, onSendFile }: SharePanelProps) 
           <legend className="mb-1 text-[10px] uppercase tracking-wider text-muted-foreground">
             Retain
           </legend>
-          <div className="flex gap-1">
+          <div className="flex flex-wrap gap-1">
             {RETENTIONS.map((r) => (
               <button
                 key={r}
                 type="button"
                 onClick={() => setRetention(r)}
-                className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
+                className={`rounded-md px-2 py-1 text-xs font-medium transition-colors ${
                   retention === r
                     ? "bg-accent text-accent-foreground"
                     : "bg-muted text-muted-foreground hover:bg-muted/80"

@@ -8,24 +8,28 @@ import { useCallback, useEffect, useRef, useState } from "react";
 export function RoomSwitcher() {
   const { rooms, activeRoomId, setActiveRoomId, setDialog, removeRoom } = useUIStore();
   const { joinRoom, leaveRoom, sendSignaling } = useRoomContext();
+  const connected = useRoomStore((s) => s.connected);
   const connectedRoomId = useRoomStore((s) => s.roomId);
   const peerId = useRoomStore((s) => s.peerId);
-  const [openDropdown, setOpenDropdown] = useState<string | null>(null);
-  const dropdownRef = useRef<HTMLDivElement>(null);
+  const peers = useRoomStore((s) => s.peers);
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
 
-  // Close dropdown on outside click
   useEffect(() => {
-    if (!openDropdown) return;
+    if (!open) return;
     const handler = (e: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
-        setOpenDropdown(null);
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpen(false);
       }
     };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
-  }, [openDropdown]);
+  }, [open]);
+
+  const activeRoom = rooms.find((r) => r.id === activeRoomId);
 
   const handleSwitch = (roomId: string) => {
+    setOpen(false);
     setActiveRoomId(roomId);
     if (roomId !== connectedRoomId) {
       const room = rooms.find((r) => r.id === roomId);
@@ -33,117 +37,139 @@ export function RoomSwitcher() {
     }
   };
 
-  const handleLeaveRoom = useCallback(
+  const handleLeave = useCallback(
     (roomId: string) => {
-      if (roomId === connectedRoomId) {
-        leaveRoom();
-      }
+      setOpen(false);
+      if (roomId === connectedRoomId) leaveRoom();
       removeRoom(roomId);
-      setActiveRoomId("global");
-      setOpenDropdown(null);
     },
-    [connectedRoomId, leaveRoom, removeRoom, setActiveRoomId],
+    [connectedRoomId, leaveRoom, removeRoom],
   );
 
-  const canDelete = useCallback(
-    (room: { id: string; createdBy?: string }) =>
-      room.createdBy !== undefined && room.createdBy === peerId,
-    [peerId],
+  const handleDelete = useCallback(
+    (roomId: string) => {
+      setOpen(false);
+      if (window.confirm("Delete this room?")) {
+        sendSignaling({ type: "delete-room", roomId, peerId });
+        removeRoom(roomId);
+      }
+    },
+    [peerId, sendSignaling, removeRoom],
   );
 
   return (
-    <nav className="flex items-center gap-1 overflow-x-auto">
-      {rooms.map((room) => {
-        const active = activeRoomId === room.id;
-        const isGlobal = room.id === "global";
-        return (
-          <div key={room.id} className="relative shrink-0">
-            <button
-              type="button"
-              onClick={() => handleSwitch(room.id)}
-              className={`flex items-center gap-2 rounded-lg px-3 py-1.5 font-mono text-sm transition-colors ${
-                active
-                  ? "bg-accent/10 text-accent"
-                  : "text-muted-foreground hover:bg-muted hover:text-foreground"
-              }`}
-            >
-              <span
-                className={`size-2 rounded-full ${
-                  isGlobal ? "zr-pulse bg-signal" : "bg-muted-foreground"
-                }`}
-              />
-              <span className="truncate">{room.name}</span>
-              {room.hasPassword && <span className="text-xs opacity-60">🔒</span>}
-            </button>
-            {!isGlobal && (
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setOpenDropdown(openDropdown === room.id ? null : room.id);
-                }}
-                className="ml-0.5 rounded px-1 py-1 text-xs text-muted-foreground opacity-0 transition-opacity hover:bg-muted hover:text-foreground group-hover:opacity-100"
-                style={{ opacity: openDropdown === room.id ? undefined : undefined }}
-                onMouseEnter={(e) => {
-                  (e.currentTarget as HTMLElement).style.opacity = "1";
-                }}
-                onMouseLeave={(e) => {
-                  if (openDropdown !== room.id) {
-                    (e.currentTarget as HTMLElement).style.opacity = "0";
-                  }
-                }}
-              >
-                ⋮
-              </button>
+    <div ref={ref} className="relative">
+      <div className="flex items-center gap-2">
+        <span className="hidden sm:inline shrink-0 font-mono text-sm font-bold tracking-tight text-accent">
+          0Relay
+        </span>
+
+        <button
+          type="button"
+          onClick={() => setOpen(!open)}
+          className="flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-sm transition-colors hover:bg-muted"
+        >
+          <span
+            className={`size-2 shrink-0 rounded-full ${
+              activeRoomId === "global"
+                ? "bg-signal zr-pulse"
+                : connected
+                  ? "bg-green-500"
+                  : "bg-destructive"
+            }`}
+          />
+          <span className="text-foreground">{activeRoom?.name || "Global"}</span>
+          <span className="hidden sm:inline text-xs text-muted-foreground">
+            {peers.length > 0 && `(${peers.length})`}
+          </span>
+          <svg
+            className="size-3 text-muted-foreground"
+            aria-hidden="true"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+          </svg>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setDialog("create")}
+          className="hidden sm:inline shrink-0 rounded-lg px-2 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+        >
+          + New
+        </button>
+        <button
+          type="button"
+          onClick={() => setDialog("join")}
+          className="hidden sm:inline shrink-0 rounded-lg px-2 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+        >
+          Join
+        </button>
+      </div>
+
+      {open && (
+        <div className="absolute left-0 top-full z-50 mt-1 w-64 overflow-hidden rounded-lg border border-border bg-card shadow-lg">
+          <div className="max-h-64 overflow-y-auto">
+            {rooms.length === 0 && (
+              <p className="px-3 py-4 text-center text-sm text-muted-foreground">No rooms</p>
             )}
-            {openDropdown === room.id && (
-              <div
-                ref={dropdownRef}
-                className="absolute right-0 top-full z-50 mt-1 w-36 overflow-hidden rounded-lg border border-border bg-popover shadow-lg"
-              >
-                <button
-                  type="button"
-                  onClick={() => handleLeaveRoom(room.id)}
-                  className="flex w-full items-center px-3 py-2 text-left text-sm text-foreground transition-colors hover:bg-muted"
+            {rooms.map((room) => {
+              const isActive = activeRoomId === room.id;
+              return (
+                <div
+                  key={room.id}
+                  className={`flex items-center gap-1 px-1 ${isActive ? "bg-accent/5" : ""}`}
                 >
-                  Leave
-                </button>
-                {canDelete(room) && (
                   <button
                     type="button"
-                    onClick={() => {
-                      if (window.confirm(`Delete "${room.name}"?`)) {
-                        sendSignaling({ type: "delete-room", roomId: room.id, peerId });
-                        removeRoom(room.id);
-                        setActiveRoomId("global");
-                        setOpenDropdown(null);
-                      }
-                    }}
-                    className="flex w-full items-center px-3 py-2 text-left text-sm text-destructive transition-colors hover:bg-destructive/10"
+                    onClick={() => handleSwitch(room.id)}
+                    className="flex min-w-0 flex-1 items-center gap-2 px-2 py-2 text-left text-sm transition-colors hover:bg-muted"
                   >
-                    Delete
+                    <span
+                      className={`size-2 shrink-0 rounded-full ${
+                        room.id === "global"
+                          ? "bg-signal"
+                          : isActive && connected
+                            ? "bg-green-500"
+                            : "bg-muted-foreground"
+                      }`}
+                    />
+                    <span className="truncate text-foreground">{room.name}</span>
+                    {room.hasPassword && (
+                      <span className="shrink-0 text-xs text-muted-foreground">🔒</span>
+                    )}
+                    {isActive && connected && (
+                      <span className="shrink-0 text-xs text-muted-foreground">
+                        {peers.length} peer{peers.length !== 1 ? "s" : ""}
+                      </span>
+                    )}
                   </button>
-                )}
-              </div>
-            )}
+                  {room.id !== "global" && (
+                    <div className="flex shrink-0 items-center gap-0.5 pr-1">
+                      <button
+                        type="button"
+                        onClick={() => handleLeave(room.id)}
+                        className="rounded px-1.5 py-1 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                      >
+                        Leave
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDelete(room.id)}
+                        className="rounded px-1.5 py-1 text-xs text-destructive transition-colors hover:bg-destructive/10"
+                      >
+                        Del
+                      </button>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
-        );
-      })}
-      <span className="mx-1 h-4 w-px bg-border" />
-      <button
-        type="button"
-        onClick={() => setDialog("create")}
-        className="shrink-0 rounded-lg px-2 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-      >
-        + New
-      </button>
-      <button
-        type="button"
-        onClick={() => setDialog("join")}
-        className="shrink-0 rounded-lg px-2 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-      >
-        Join
-      </button>
-    </nav>
+        </div>
+      )}
+    </div>
   );
 }

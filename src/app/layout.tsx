@@ -1,9 +1,8 @@
-import { RoomProvider } from "@/components/room-provider";
 import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "ZeroRelay",
+  title: "0Relay",
   description: "Peer-to-peer file sharing on the network",
 };
 
@@ -24,9 +23,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           }}
         />
       </head>
-      <body className="antialiased">
-        <RoomProvider>{children}</RoomProvider>
-      </body>
+      <body className="antialiased">{children}</body>
     </html>
   );
 }

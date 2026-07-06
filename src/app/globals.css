@@ -10,7 +10,7 @@
   --color-border: #d2d2d7;
   --color-accent: #00b368;
   --color-accent-foreground: #ffffff;
-  --color-signal: #00d98a;
+  --color-signal: #000000;
   --color-destructive: #ff3b30;
   --color-card: #ffffff;
   --color-card-foreground: #1d1d1f;
@@ -26,7 +26,7 @@
   --color-border: #424245;
   --color-accent: #2ce69a;
   --color-accent-foreground: #10231a;
-  --color-signal: #3bffb0;
+  --color-signal: #ffffff;
   --color-destructive: #ff453a;
   --color-card: #2d2d2f;
   --color-card-foreground: #f5f5f7;
@@ -129,6 +129,78 @@ body {
   .zr-ripple,
   .zr-node-in,
   .zr-packet {
+    animation: none;
+  }
+}
+
+/* ── Landing page animations ── */
+@keyframes l-float {
+  0%,
+  100% {
+    transform: translate(-50%, -50%);
+  }
+  50% {
+    transform: translate(-50%, calc(-50% - 8px));
+  }
+}
+@keyframes l-pulse-glow {
+  0%,
+  100% {
+    opacity: 0.15;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.3;
+    transform: scale(1.15);
+  }
+}
+@keyframes l-pulse-ring {
+  0%,
+  100% {
+    opacity: 0.1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.25;
+    transform: scale(1.08);
+  }
+}
+
+@keyframes l-packet {
+  0% {
+    transform: translate(0, 0) scale(0.4);
+    opacity: 0;
+  }
+  12% {
+    opacity: 1;
+  }
+  88% {
+    opacity: 1;
+  }
+  100% {
+    transform: translate(var(--dx), var(--dy)) scale(1.1);
+    opacity: 0;
+  }
+}
+
+.animate-l-float {
+  animation: l-float 3s ease-in-out infinite;
+}
+.animate-l-pulse-glow {
+  animation: l-pulse-glow 2s ease-in-out infinite;
+}
+.animate-l-pulse-ring {
+  animation: l-pulse-ring 3s ease-in-out infinite;
+}
+.animate-l-packet {
+  animation: l-packet 2s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-l-float,
+  .animate-l-pulse-glow,
+  .animate-l-pulse-ring,
+  .animate-l-packet {
     animation: none;
   }
 }
