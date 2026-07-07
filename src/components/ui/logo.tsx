@@ -20,11 +20,7 @@ function ThetaIcon({ className = "" }: { className?: string }) {
       strokeWidth={4}
     >
       {/* offset shadow layer */}
-      <g
-        transform="translate(1.4,2)"
-        stroke="currentColor"
-        strokeOpacity="0.35"
-      >
+      <g transform="translate(1.4,2)" stroke="currentColor" strokeOpacity="0.35">
         <ellipse cx="12" cy="12" rx="7" ry="9" />
         <line x1="6.4" y1="12" x2="17.6" y2="12" />
       </g>
@@ -52,7 +48,7 @@ export function Logo({
 }) {
   const s = SIZES[size];
   return (
-     <span
+    <span
       aria-label="ZeroRelay"
       className={`inline-flex select-none items-center font-mono font-extrabold tracking-tight text-foreground ${s.text} ${className}`}
     >
