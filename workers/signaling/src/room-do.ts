@@ -60,7 +60,7 @@ export class RoomDO implements DurableObject {
         this.relay(msg);
         break;
       default:
-        this.send(ws, { type: "error", message: `Unknown message type: ${msg.type}` });
+        this.send(ws, { type: "error", message: `Unknown message type: ${(msg as { type: string }).type}` });
     }
   }
 
