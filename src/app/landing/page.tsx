@@ -29,12 +29,6 @@ export default function LandingPage() {
             <GitHubIcon />
             Star on GitHub
           </a>
-          <Link
-            href="/"
-            className="rounded-lg bg-signal px-4 py-2 text-sm font-medium text-background transition-colors hover:bg-signal/90"
-          >
-            Enter Chat
-          </Link>
         </div>
       </header>
 
@@ -76,7 +70,7 @@ export default function LandingPage() {
             {
               step: "01",
               title: "Create a Room",
-              desc: "Pick a name and optional password. Rooms are instant — no signup needed.",
+              desc: "Pick a name and optional password. Rooms are instant - no signup needed.",
             },
             {
               step: "02",
@@ -86,7 +80,7 @@ export default function LandingPage() {
             {
               step: "03",
               title: "Direct & Fast",
-              desc: "Browser-to-browser via WebRTC. The relay only helps find peers — your data stays between you.",
+              desc: "Browser-to-browser via WebRTC. The relay only helps find peers - your data stays between you.",
             },
           ].map((item) => (
             <div
@@ -145,7 +139,14 @@ export default function LandingPage() {
           GitHub
         </a>
         <span className="mx-3">·</span>
-        Built with WebRTC · Cloudflare Durable Objects · Next.js · Tailwind CSS
+        <a
+          href="https://github.com/kushal1o1/ZeroRelay/blob/main/LICENSE"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="hover:text-foreground"
+        >
+          MIT License
+        </a>
       </footer>
     </div>
   );
