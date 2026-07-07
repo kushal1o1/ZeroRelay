@@ -26,16 +26,17 @@ export class RoomDO implements DurableObject {
         try {
           const data = JSON.parse(e.data) as ClientMessage;
           this.handleMessage(server, data);
-        } catch {
+        } catch (e) {
+          console.error("Failed to parse message", e);
           this.send(server, { type: "error", message: "Invalid message" });
         }
       });
 
       server.addEventListener("close", () => this.handleDisconnect(server));
-      server.addEventListener("error", () => this.handleDisconnect(server));
 
       return new Response(null, { status: 101, webSocket: client });
-    } catch {
+    } catch (e) {
+      console.error("WebSocket setup failed", e);
       return new Response("WebSocket setup failed", { status: 500 });
     }
   }
@@ -89,8 +90,8 @@ export class RoomDO implements DurableObject {
     if (existing && existing.ws !== ws) {
       try {
         existing.ws.close();
-      } catch {
-        /* already closed */
+      } catch (e) {
+        console.error("Failed to close old socket", e);
       }
       this.connections.delete(msg.peerId);
     }
@@ -166,8 +167,8 @@ export class RoomDO implements DurableObject {
   private send(ws: WebSocket, msg: ServerMessage) {
     try {
       ws.send(JSON.stringify(msg));
-    } catch {
-      /* connection closed */
+    } catch (e) {
+      console.error("Send failed", e);
     }
   }
 
