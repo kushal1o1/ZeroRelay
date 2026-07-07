@@ -15,24 +15,29 @@ export class RoomDO implements DurableObject {
   }
 
   async fetch(request: Request): Promise<Response> {
-    const pair = new WebSocketPair();
-    const [client, server] = Object.values(pair);
+    try {
+      const pair = new WebSocketPair();
+      const [client, server] = Object.values(pair);
 
-    server.accept();
+      server.accept();
 
-    server.addEventListener("message", (e: MessageEvent) => {
-      if (typeof e.data !== "string") return;
-      try {
-        const data = JSON.parse(e.data) as ClientMessage;
-        this.handleMessage(server, data);
-      } catch {
-        this.send(server, { type: "error", message: "Invalid message" });
-      }
-    });
+      server.addEventListener("message", (e: MessageEvent) => {
+        if (typeof e.data !== "string") return;
+        try {
+          const data = JSON.parse(e.data) as ClientMessage;
+          this.handleMessage(server, data);
+        } catch {
+          this.send(server, { type: "error", message: "Invalid message" });
+        }
+      });
 
-    server.addEventListener("close", () => this.handleDisconnect(server));
+      server.addEventListener("close", () => this.handleDisconnect(server));
+      server.addEventListener("error", () => this.handleDisconnect(server));
 
-    return new Response(null, { status: 101, webSocket: client });
+      return new Response(null, { status: 101, webSocket: client });
+    } catch {
+      return new Response("WebSocket setup failed", { status: 500 });
+    }
   }
 
   private handleMessage(ws: WebSocket, msg: ClientMessage) {
@@ -54,10 +59,20 @@ export class RoomDO implements DurableObject {
       case "ice-candidate":
         this.relay(msg);
         break;
+      default:
+        this.send(ws, { type: "error", message: `Unknown message type: ${msg.type}` });
     }
   }
 
   private handleJoin(ws: WebSocket, msg: ClientMessage & { type: "join" }) {
+    if (!msg.peerId || typeof msg.peerId !== "string") {
+      this.send(ws, { type: "error", message: "Invalid peerId" });
+      return;
+    }
+    if (!msg.name || typeof msg.name !== "string") {
+      this.send(ws, { type: "error", message: "Invalid name" });
+      return;
+    }
     if (this.password && msg.password !== this.password) {
       this.send(ws, { type: "error", message: "Invalid password" });
       return;
