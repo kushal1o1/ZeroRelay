@@ -54,10 +54,18 @@ export async function cleanExpired() {
   if (toDelete.length > 0) await db.messages.bulkDelete(toDelete);
 }
 
+export async function deleteMessage(id: string) {
+  await db.messages.delete(id);
+}
+
 export async function deleteRoomMessages(roomId: string) {
   const items = await db.messages.where("roomId").equals(roomId).toArray();
   const ids = items.map((i) => i.id);
   if (ids.length > 0) await db.messages.bulkDelete(ids);
+}
+
+export async function clearAllData() {
+  await Promise.all([db.messages.clear(), db.avatars.clear()]);
 }
 
 export async function saveAvatar(peerId: string, dataUrl: string) {

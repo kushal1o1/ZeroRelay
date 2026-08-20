@@ -5,6 +5,7 @@ import { ProfileDialog } from "@/components/profile-dialog";
 import { RoomProvider, useRoomContext } from "@/components/room-provider";
 import { RoomSwitcher } from "@/components/room-switcher";
 import { RoomView } from "@/components/room/room-view";
+import { SuperDeleteDialog } from "@/components/super-delete-dialog";
 import { Avatar } from "@/components/ui/avatar";
 import { Logo } from "@/components/ui/logo";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
@@ -24,6 +25,7 @@ function ChatHome() {
   const activeRoomId = useUIStore((s) => s.activeRoomId);
   const { joinRoom } = useRoomContext();
   const [profileOpen, setProfileOpen] = useState(false);
+  const [superDeleteOpen, setSuperDeleteOpen] = useState(false);
   // Name/avatar come from localStorage-seeded state, so they differ between the
   // server render and the client. Gate them behind mount to avoid a hydration
   // mismatch (render a neutral placeholder until mounted).
@@ -101,7 +103,12 @@ function ChatHome() {
       </main>
 
       <CreateRoomDialog />
-      <ProfileDialog open={profileOpen} onClose={() => setProfileOpen(false)} />
+      <ProfileDialog
+        open={profileOpen}
+        onClose={() => setProfileOpen(false)}
+        onEraseAll={() => setSuperDeleteOpen(true)}
+      />
+      <SuperDeleteDialog open={superDeleteOpen} onClose={() => setSuperDeleteOpen(false)} />
       <Viewer />
     </div>
   );

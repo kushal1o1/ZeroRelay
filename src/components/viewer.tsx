@@ -2,6 +2,7 @@
 
 import { copyText } from "@/lib/clipboard";
 import { hashString } from "@/lib/hash";
+import { useMessageStore } from "@/stores/message-store";
 import { useViewerStore } from "@/stores/viewer-store";
 import { useEffect, useState } from "react";
 
@@ -49,6 +50,22 @@ export function Viewer() {
       >
         ✕
       </button>
+
+      {item.retention === "forever" && (
+        <button
+          type="button"
+          onClick={() => {
+            useMessageStore.getState().removeItem(item.id);
+            close();
+          }}
+          title="Delete from this device"
+          aria-label="Delete from this device"
+          className="absolute right-20 top-5 flex size-10 items-center justify-center rounded-xl border border-border text-base text-foreground transition-colors hover:border-destructive hover:text-destructive"
+          style={{ background: "var(--panel)" }}
+        >
+          🗑
+        </button>
+      )}
 
       {item.type === "code" ? (
         <div className="zr-term w-[820px] max-w-[94vw]" style={{ cursor: "default" }}>
