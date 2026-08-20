@@ -21,10 +21,11 @@ function readFileAsDataURL(file: File): Promise<string> {
 interface ProfileDialogProps {
   open: boolean;
   onClose: () => void;
+  onEraseAll: () => void;
 }
 
 /** Edit your display name + avatar (persisted on-device, broadcast to peers). */
-export function ProfileDialog({ open, onClose }: ProfileDialogProps) {
+export function ProfileDialog({ open, onClose, onEraseAll }: ProfileDialogProps) {
   const myPeerId = useRoomStore((s) => s.peerId);
   const myName = useRoomStore((s) => s.name);
   const { rename, updateAvatar } = useRoomContext();
@@ -95,6 +96,28 @@ export function ProfileDialog({ open, onClose }: ProfileDialogProps) {
           <Button type="button" onClick={handleSave}>
             Save
           </Button>
+        </div>
+
+        <div className="border-t border-border pt-4">
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-destructive">
+            Danger zone
+          </p>
+          <div className="mt-2 flex items-center justify-between gap-3">
+            <p className="text-xs text-muted-foreground">
+              Wipe all local messages, files, avatars, and settings.
+            </p>
+            <Button
+              type="button"
+              variant="destructive"
+              className="shrink-0"
+              onClick={() => {
+                onClose();
+                onEraseAll();
+              }}
+            >
+              Erase all data
+            </Button>
+          </div>
         </div>
       </div>
     </Dialog>

@@ -1,4 +1,11 @@
-import { cleanExpired, deleteRoomMessages, getMessages, saveMessage } from "@/lib/db";
+import {
+  cleanExpired,
+  clearAllData,
+  deleteMessage,
+  deleteRoomMessages,
+  getMessages,
+  saveMessage,
+} from "@/lib/db";
 import type { SharedItem } from "@/types/message";
 import { create } from "zustand";
 
@@ -11,7 +18,9 @@ interface MessageState {
   load: () => Promise<void>;
   refresh: () => Promise<void>;
   addItem: (item: SharedItem) => Promise<void>;
+  removeItem: (id: string) => Promise<void>;
   removeRoomItems: (roomId: string) => Promise<void>;
+  clearAll: () => Promise<void>;
   setProgress: (id: string, value: number) => void;
 }
 
@@ -46,9 +55,23 @@ export const useMessageStore = create<MessageState>((set, get) => ({
     set((s) => ({ items: [item, ...s.items] }));
   },
 
+  removeItem: async (id) => {
+    await deleteMessage(id);
+    set((s) => {
+      const progress = { ...s.progress };
+      delete progress[id];
+      return { items: s.items.filter((i) => i.id !== id), progress };
+    });
+  },
+
   removeRoomItems: async (roomId) => {
     await deleteRoomMessages(roomId);
     set((s) => ({ items: s.items.filter((i) => i.roomId !== roomId) }));
+  },
+
+  clearAll: async () => {
+    await clearAllData();
+    set({ items: [], loaded: false, progress: {} });
   },
 
   setProgress: (id, value) => set((s) => ({ progress: { ...s.progress, [id]: value } })),

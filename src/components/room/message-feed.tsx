@@ -95,10 +95,21 @@ export function FileCard({ item }: { item: SharedItem }) {
     <div className="zr-filecard">
       <div className="flex items-center gap-2.5">
         <div className="zr-fc-ico">📄</div>
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           <div className="truncate text-sm font-medium text-foreground">{item.fileName}</div>
           <div className="text-[11px] text-muted-foreground">{formatSize(item.fileSize || 0)}</div>
         </div>
+        {item.retention === "forever" && (
+          <button
+            type="button"
+            title="Delete from this device"
+            aria-label="Delete from this device"
+            onClick={() => useMessageStore.getState().removeItem(item.id)}
+            className="shrink-0 self-start rounded px-1 text-sm text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+          >
+            🗑
+          </button>
+        )}
       </div>
       {mine ? (
         <div className="mt-2 text-[10px] text-muted-foreground">Sent</div>
@@ -153,6 +164,7 @@ export function ChatFeed() {
   const { items } = useStorage();
   const myPeerId = useRoomStore((s) => s.peerId);
   const activeRoomId = useUIStore((s) => s.activeRoomId);
+  const removeItem = useMessageStore((s) => s.removeItem);
   const roomItems = items
     .filter((i) => i.roomId === activeRoomId)
     .slice()
@@ -185,6 +197,17 @@ export function ChatFeed() {
                 {!mine && <b className="text-foreground">{item.peerName}</b>}
                 <time>{formatTime(item.timestamp)}</time>
                 <RetentionBadge retention={item.retention} />
+                {item.retention === "forever" && item.type !== "file" && (
+                  <button
+                    type="button"
+                    title="Delete from this device"
+                    aria-label="Delete from this device"
+                    onClick={() => removeItem(item.id)}
+                    className="rounded px-1 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+                  >
+                    🗑
+                  </button>
+                )}
               </div>
               <MessageBody item={item} mine={mine} />
             </div>
