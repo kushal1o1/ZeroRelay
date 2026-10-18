@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { clearIdentity } from "@/lib/identity";
+import { clearIncoming } from "@/lib/transfer/sinks";
 import { useMessageStore } from "@/stores/message-store";
 import { useUIStore } from "@/stores/ui-store";
 import { useState } from "react";
@@ -27,6 +28,7 @@ export function SuperDeleteDialog({ open, onClose }: SuperDeleteDialogProps) {
     setBusy(true);
     try {
       await useMessageStore.getState().clearAll();
+      await clearIncoming();
       localStorage.removeItem("zerorelay-name");
       clearIdentity();
       localStorage.removeItem("theme");

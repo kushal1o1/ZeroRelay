@@ -1,6 +1,6 @@
 "use client";
 
-import { PeerMesh } from "@/lib/peer-mesh";
+import { type LinkState, PeerMesh } from "@/lib/peer-mesh";
 import { WorldLinks } from "@/lib/world-links";
 import { useConnectionStore } from "@/stores/connection-store";
 import { isLinked } from "@/stores/lobby-store";
@@ -19,6 +19,9 @@ interface MeshHandlers {
   sendSignal: (to: string, payload: SignalPayload) => void;
   onData: (from: string, data: string) => void;
   onOpen: (peerId: string) => void;
+  /** An extra channel opened by a peer (file transfers). */
+  onChannel: (peerId: string, channel: RTCDataChannel) => void;
+  onLinkState: (peerId: string, state: LinkState | null) => void;
 }
 
 const isRoomPeer = (id: string) => useRoomStore.getState().peers.some((p) => p.id === id);
@@ -38,9 +41,11 @@ export function useMesh(selfId: string, handlers: MeshHandlers) {
       signal: (to, payload) => handlersRef.current.sendSignal(to, payload),
       data: (from, data) => handlersRef.current.onData(from, data),
       open: (peerId) => handlersRef.current.onOpen(peerId),
+      channel: (peerId, channel) => handlersRef.current.onChannel(peerId, channel),
       state: (peerId, state) => {
         useConnectionStore.getState().set(peerId, state);
         world?.onLinkState(peerId, state);
+        handlersRef.current.onLinkState(peerId, state);
       },
       wanted: (peerId) => isRoomPeer(peerId) || isLinked(peerId),
     });

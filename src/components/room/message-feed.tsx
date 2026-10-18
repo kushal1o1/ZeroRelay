@@ -1,6 +1,7 @@
 "use client";
 
 import { useRoomContext } from "@/components/room-provider";
+import { FileCard } from "@/components/room/file-card";
 import { Avatar } from "@/components/ui/avatar";
 import { useStorage } from "@/hooks/use-storage";
 import { copyText } from "@/lib/clipboard";
@@ -120,85 +121,6 @@ export function MarkdownCard({ item }: { item: SharedItem }) {
         onClick={() => openText(item)}
         className="absolute inset-0 z-10 cursor-zoom-in"
       />
-    </div>
-  );
-}
-
-export function FileCard({ item }: { item: SharedItem }) {
-  const { requestFile } = useRoomContext();
-  const myPeerId = useRoomStore((s) => s.peerId);
-  const pct = useMessageStore((s) => s.progress[item.id]);
-  const transfer = useMessageStore((s) => s.transfers[item.id]);
-  const mine = item.peerId === myPeerId;
-  const handleClick = () => requestFile(item);
-  const markdownFile = isMarkdownFileName(item.fileName);
-  const handlePreview = () => requestFile(item, "preview");
-
-  return (
-    <div className="zr-filecard">
-      <div className="flex items-center gap-2.5">
-        <div className="zr-fc-ico">📄</div>
-        <div className="min-w-0 flex-1">
-          <div className="truncate text-sm font-medium text-foreground">{item.fileName}</div>
-          <div className="text-[11px] text-muted-foreground">{formatSize(item.fileSize || 0)}</div>
-        </div>
-        {item.retention === "forever" && (
-          <button
-            type="button"
-            title="Delete from this device"
-            aria-label="Delete from this device"
-            onClick={() => useMessageStore.getState().removeItem(item.id)}
-            className="shrink-0 self-start rounded px-1 text-sm text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
-          >
-            🗑
-          </button>
-        )}
-      </div>
-      {markdownFile && (
-        <button
-          type="button"
-          onClick={handlePreview}
-          disabled={Boolean(transfer)}
-          className="mt-2 inline-flex items-center gap-1 rounded-lg border border-border px-2.5 py-1 font-mono text-[11px] font-semibold text-foreground transition-colors hover:bg-muted disabled:cursor-wait disabled:opacity-50"
-        >
-          {transfer === "preview"
-            ? "Opening preview…"
-            : transfer === "download"
-              ? "Download in progress"
-              : "Preview MD"}
-        </button>
-      )}
-      {mine ? (
-        <div className="mt-2 text-[10px] text-muted-foreground">Sent</div>
-      ) : transfer === "preview" ? (
-        <div className="mt-2 text-[10px] text-muted-foreground">Fetching Markdown preview…</div>
-      ) : pct === undefined ? (
-        <button
-          type="button"
-          onClick={handleClick}
-          className="mt-2 inline-flex items-center gap-1.5 rounded-lg bg-accent px-3 py-1 font-mono text-[11px] font-semibold text-accent-foreground transition-opacity hover:opacity-90 disabled:opacity-50"
-        >
-          ↓ download
-        </button>
-      ) : pct >= 1 ? (
-        <div className="mt-2 flex items-center gap-2">
-          <span className="text-[10px] text-accent">Saved</span>
-          <button
-            type="button"
-            onClick={handleClick}
-            className="inline-flex items-center gap-1 rounded-lg bg-accent px-2.5 py-1 font-mono text-[11px] font-semibold text-accent-foreground transition-opacity hover:opacity-90"
-          >
-            download again
-          </button>
-        </div>
-      ) : (
-        <div className="mt-2">
-          <div className="zr-bar">
-            <i style={{ width: `${Math.round(pct * 100)}%` }} />
-          </div>
-          <div className="mt-1 text-[10px] text-muted-foreground">{Math.round(pct * 100)}%</div>
-        </div>
-      )}
     </div>
   );
 }

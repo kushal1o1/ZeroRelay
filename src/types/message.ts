@@ -33,30 +33,32 @@ export interface SharedItem {
   timestamp: number;
 }
 
+export type TransferPurpose = "download" | "preview";
+
+// ── Control messages on the main "data" channel (JSON text) ──
+
 export interface DataMessage {
   type: "share";
   item: SharedItem;
   targetPeerId?: string;
 }
 
+/** Receiver → owner: please open a transfer channel and send this file. */
 export interface FileRequest {
   type: "file-request";
   sharedItemId: string;
-  purpose?: "download" | "preview";
+  transferId: string;
+  purpose: TransferPurpose;
 }
 
-export interface FileChunk {
-  type: "file-chunk";
-  sharedItemId: string;
-  offset: number;
-  total: number;
-  data: string; // base64 encoded chunk
-}
-
+/** Owner → receiver: the request can't be served. */
 export interface FileError {
   type: "file-error";
   sharedItemId: string;
-  message?: string;
+  transferId: string;
+  message: string;
+  /** The owner doesn't hold the file any more (e.g. they reloaded). */
+  gone?: boolean;
 }
 
 export interface AvatarMessage {
@@ -64,5 +66,18 @@ export interface AvatarMessage {
   dataUrl: string;
 }
 
-// Anything that can arrive over a peer data channel.
-export type PeerMessage = DataMessage | FileRequest | FileChunk | FileError | AvatarMessage;
+// Anything that can arrive over the main peer data channel.
+export type PeerMessage = DataMessage | FileRequest | FileError | AvatarMessage;
+
+// ── Frames on a per-transfer channel ("xfer:<transferId>") ──
+// File bytes travel as binary ArrayBuffer frames; these JSON frames frame them.
+
+export type TransferFrame =
+  /** Sender → receiver, first frame. */
+  | { t: "start"; size: number }
+  /** Sender → receiver, after the last chunk. */
+  | { t: "end" }
+  /** Receiver → sender: bytes written so far (drives progress + flow control). */
+  | { t: "ack"; bytes: number }
+  /** Either side: stop the transfer. */
+  | { t: "cancel"; reason: string };

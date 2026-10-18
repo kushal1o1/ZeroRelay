@@ -5,19 +5,11 @@ import { Avatar } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { makeAvatar } from "@/lib/avatar";
 import { useAvatarStore } from "@/stores/avatar-store";
 import { useRoomStore } from "@/stores/room-store";
 import { useUIStore } from "@/stores/ui-store";
 import { useEffect, useRef, useState } from "react";
-
-function readFileAsDataURL(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result as string);
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
-}
 
 interface ProfileDialogProps {
   open: boolean;
@@ -35,6 +27,7 @@ export function ProfileDialog({ open, onClose, onEraseAll }: ProfileDialogProps)
 
   const [editName, setEditName] = useState(myName);
   const [editAvatar, setEditAvatar] = useState<string | null>(null);
+  const [avatarError, setAvatarError] = useState<string | null>(null);
   const [listed, setListed] = useState(visibility === "world");
 
   useEffect(() => {
@@ -47,12 +40,15 @@ export function ProfileDialog({ open, onClose, onEraseAll }: ProfileDialogProps)
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file || file.size > 500 * 1024) return;
-    readFileAsDataURL(file).then((dataUrl) => {
-      setEditAvatar(dataUrl);
-      updateAvatar(dataUrl);
-    });
     e.target.value = "";
+    if (!file) return;
+    setAvatarError(null);
+    makeAvatar(file)
+      .then((dataUrl) => {
+        setEditAvatar(dataUrl);
+        updateAvatar(dataUrl);
+      })
+      .catch((err: Error) => setAvatarError(err.message));
   };
 
   const handleSave = () => {
@@ -88,6 +84,7 @@ export function ProfileDialog({ open, onClose, onEraseAll }: ProfileDialogProps)
           className="hidden"
           onChange={handleFileChange}
         />
+        {avatarError && <p className="text-center text-xs text-destructive">{avatarError}</p>}
         <Input
           id="profile-name"
           label="Display name"

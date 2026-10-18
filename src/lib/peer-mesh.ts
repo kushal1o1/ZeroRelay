@@ -10,8 +10,10 @@ export interface MeshEvents {
   /** Send a signaling payload to a peer (via the signaling server). */
   signal: (to: string, payload: SignalPayload) => void;
   data: (from: string, data: string) => void;
-  /** A data channel to this peer just opened. */
+  /** The main data channel to this peer just opened. */
   open: (peerId: string) => void;
+  /** The peer opened an extra channel (anything not labeled "data"). */
+  channel: (peerId: string, channel: RTCDataChannel) => void;
   /** Link state changed; `null` means the link is gone. */
   state: (peerId: string, state: LinkState | null) => void;
   /** Whether we still want a link to this peer (drives automatic redials). */
@@ -22,12 +24,11 @@ interface Link {
   pc: RTCPeerConnection;
   channel: RTCDataChannel | null;
   pendingIce: RTCIceCandidateInit[];
-  /** Resolved when the channel opens (true) or the link dies (false). */
-  waiters: Set<(ok: boolean) => void>;
   /** We sent the first offer; the offerer drives ICE restarts and redials. */
   offerer: boolean;
 }
 
+const MAIN_CHANNEL = "data";
 const ICE_SERVERS: RTCIceServer[] = [
   { urls: "stun:stun.l.google.com:19302" },
   { urls: "stun:stun1.l.google.com:19302" },
@@ -39,6 +40,9 @@ const REDIAL_GRACE_MS = 8_000;
 
 export class PeerMesh {
   private links = new Map<string, Link>();
+  /** Callers of ensure(), per peer. They outlive individual links, so a send
+   *  made while a link is being redialed waits for the redial. */
+  private waiters = new Map<string, Set<(ok: boolean) => void>>();
   private redials = new Map<string, number>();
   private timers = new Map<string, ReturnType<typeof setTimeout>>();
 
@@ -71,20 +75,23 @@ export class PeerMesh {
   ensure(peerId: string, timeoutMs = CONNECT_TIMEOUT_MS): Promise<boolean> {
     if (peerId === this.selfId) return Promise.resolve(false);
     if (this.isOpen(peerId)) return Promise.resolve(true);
-    const link = this.links.get(peerId) ?? this.offer(peerId);
-    if (!link) return Promise.resolve(false);
+    // Dial unless a link or a scheduled redial is already on its way.
+    if (!this.links.has(peerId) && !this.timers.has(peerId)) this.offer(peerId);
     return new Promise((resolve) => {
+      const set = this.waiters.get(peerId) ?? new Set();
+      this.waiters.set(peerId, set);
       const done = (ok: boolean) => {
         clearTimeout(timer);
-        link.waiters.delete(done);
+        set.delete(done);
         resolve(ok);
       };
       const timer = setTimeout(() => {
         done(false);
         // Gave up waiting: don't leave a half-open link behind.
-        if (this.links.get(peerId) === link && !this.isOpen(peerId)) this.fail(peerId, link);
+        const link = this.links.get(peerId);
+        if (link && !this.isOpen(peerId) && !this.events.wanted(peerId)) this.disconnect(peerId);
       }, timeoutMs);
-      link.waiters.add(done);
+      set.add(done);
     });
   }
 
@@ -99,11 +106,12 @@ export class PeerMesh {
     this.redials.delete(peerId);
     this.clearTimer(peerId);
     this.drop(peerId);
+    this.settle(peerId, false);
     this.events.state(peerId, null);
   }
 
   disconnectAll() {
-    for (const id of [...this.links.keys()]) this.disconnect(id);
+    for (const id of [...this.links.keys(), ...this.waiters.keys()]) this.disconnect(id);
     for (const id of [...this.timers.keys()]) this.clearTimer(id);
   }
 
@@ -119,8 +127,15 @@ export class PeerMesh {
     }
   }
 
-  bufferedAmount(peerId: string): number {
-    return this.links.get(peerId)?.channel?.bufferedAmount ?? 0;
+  /** Open an extra channel (e.g. for one file transfer) on an open link. */
+  openChannel(peerId: string, label: string): RTCDataChannel | null {
+    if (!this.isOpen(peerId)) return null;
+    return this.links.get(peerId)?.pc.createDataChannel(label) ?? null;
+  }
+
+  /** Largest message the link accepts, if the browser reports it. */
+  maxMessageSize(peerId: string): number | undefined {
+    return this.links.get(peerId)?.pc.sctp?.maxMessageSize || undefined;
   }
 
   /** Re-check links after the device wakes up or the network changes. */
@@ -148,7 +163,7 @@ export class PeerMesh {
   private createLink(peerId: string, offerer: boolean): Link {
     this.clearTimer(peerId);
     const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
-    const link: Link = { pc, channel: null, pendingIce: [], waiters: new Set(), offerer };
+    const link: Link = { pc, channel: null, pendingIce: [], offerer };
     this.links.set(peerId, link);
 
     pc.onicecandidate = (e) => {
@@ -163,7 +178,10 @@ export class PeerMesh {
         },
       });
     };
-    pc.ondatachannel = (e) => this.attachChannel(peerId, link, e.channel);
+    pc.ondatachannel = (e) => {
+      if (e.channel.label === MAIN_CHANNEL) this.attachChannel(peerId, link, e.channel);
+      else this.events.channel(peerId, e.channel);
+    };
     // The offerer repairs a broken path in place, keeping the data channel.
     pc.oniceconnectionstatechange = () => {
       if (pc.iceConnectionState === "failed" && link.offerer) void this.restartIce(peerId, link);
@@ -188,7 +206,7 @@ export class PeerMesh {
       this.redials.delete(peerId);
       this.events.state(peerId, "connected");
       this.events.open(peerId);
-      for (const w of [...link.waiters]) w(true);
+      this.settle(peerId, true);
     };
     channel.onclose = () => {
       if (this.links.get(peerId) === link && link.channel === channel) this.fail(peerId, link);
@@ -199,7 +217,7 @@ export class PeerMesh {
   private offer(peerId: string): Link | null {
     if (peerId === this.selfId) return null;
     const link = this.createLink(peerId, true);
-    this.attachChannel(peerId, link, link.pc.createDataChannel("data"));
+    this.attachChannel(peerId, link, link.pc.createDataChannel(MAIN_CHANNEL));
     void (async () => {
       try {
         await link.pc.setLocalDescription(await link.pc.createOffer());
@@ -227,12 +245,14 @@ export class PeerMesh {
     if (this.links.get(peerId) !== link) return;
     this.drop(peerId);
     if (!this.events.wanted(peerId)) {
+      this.settle(peerId, false);
       this.events.state(peerId, null);
       return;
     }
     const attempts = this.redials.get(peerId) ?? 0;
     if (attempts >= MAX_REDIALS) {
       this.redials.delete(peerId);
+      this.settle(peerId, false);
       this.events.state(peerId, "failed");
       return;
     }
@@ -245,7 +265,9 @@ export class PeerMesh {
     } else {
       // The other side redials; if nothing arrives, give up visibly.
       this.setTimer(peerId, REDIAL_GRACE_MS * (attempts + 1), () => {
-        if (!this.links.has(peerId)) this.events.state(peerId, "failed");
+        if (this.links.has(peerId)) return;
+        this.settle(peerId, false);
+        this.events.state(peerId, "failed");
       });
     }
   }
@@ -267,8 +289,15 @@ export class PeerMesh {
       channel.close();
     }
     pc.close();
-    for (const w of [...link.waiters]) w(false);
     return true;
+  }
+
+  /** Resolve everyone waiting in ensure() for this peer. */
+  private settle(peerId: string, ok: boolean) {
+    const set = this.waiters.get(peerId);
+    if (!set) return;
+    this.waiters.delete(peerId);
+    for (const w of [...set]) w(ok);
   }
 
   // ── Signal handling ──
