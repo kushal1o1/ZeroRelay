@@ -42,8 +42,12 @@ graph TD
 | `src/lib/identity.ts` | Our secret + derived peer id (localStorage) |
 | `src/lib/signaling.ts` | `SignalingClient`: one socket, backoff + jitter, heartbeat, join replay |
 | `src/hooks/use-signaling.ts` | Join/leave/delete/rename/visibility; maps server messages into stores |
-| `src/hooks/use-webrtc.ts` | RTCPeerConnection lifecycle, glare handling, ICE restart, redial |
-| `src/hooks/use-room.ts` | Glue: peer list → mesh, sharing, file transfer, avatars |
+| `src/lib/peer-mesh.ts` | `PeerMesh`: every WebRTC link of this device. Offers, glare, ICE restart, redials, wait-for-open |
+| `src/lib/world-links.ts` | `WorldLinks`: invite / accept / decline / bye with people on other networks |
+| `src/hooks/use-mesh.ts` | Creates the mesh once and keeps it in step with the room (who to link, leave grace, wake) |
+| `src/hooks/use-room.ts` | Glue: signaling ↔ mesh, sharing, file transfer, avatars |
+| `src/hooks/use-visible-peers.ts` | UI view of peers: room members + accepted lobby links, with link state |
+| `src/components/lobby/` | Lobby dialog ("Everyone") and invite toasts |
 | `src/lib/endpoints.ts` / `src/lib/lobby.ts` | Worker URLs; lobby HTTP client |
 
 ## Rooms
@@ -61,6 +65,30 @@ Peers in a Nearby room with `visibility: "world"` (the default, toggle in the pr
 
 - `GET /api/lobby?q=&cursor=` returns `{ total, peers: [{id, name}], next }`, excluding the caller's own network. Never includes network info.
 - A `signal` to a peer that isn't in the sender's room is routed: `WorldDO.lookup(to)` → network key → that network's `RoomDO.deliver()`. Only lobby-visible Nearby peers can send or receive these, at most 120 per minute per peer. The receiver gets `via: "world"` plus the sender's `{id, name}`.
+
+#### Consent flow
+
+Nothing is exchanged with a lobby peer, not even WebRTC candidates (which reveal IP addresses), until both sides agree:
+
+```mermaid
+sequenceDiagram
+  participant C as Carol (other network)
+  participant S as Signaling (world route)
+  participant A as Alice
+
+  C->>S: signal { to: A, payload: invite }
+  S->>A: signal { from: C, via: world, fromPeer: Carol }
+  Note over A: toast: "Carol wants to connect"  Accept / Decline
+  A->>S: signal { to: C, payload: invite-reply accepted }
+  S->>C: invite-reply
+  C->>A: offer / answer / ice (via world route), then direct data channel
+```
+
+- Offers, answers and candidates arriving `via: "world"` are dropped unless the link is accepted.
+- Declining mutes that person's invites for 10 minutes. Unanswered invites expire after 60 s.
+- Either side can end the link (`bye`). Links are dropped when you leave the Global room.
+- Accepted lobby links appear on the radar as "other network" and can be picked as recipients. "Everyone" sends still go to room members only.
+- There is no relay: if the two networks block direct connections, both sides see "Couldn't connect directly".
 
 ### Private rooms
 
@@ -97,7 +125,7 @@ All frames are JSON text, max 64 KB, validated on the server (`validate.ts`). Bu
 | `join {v, secret, name, visibility?, create?, password?, token?}` | Must be the first message |
 | `rename {name}` | |
 | `visibility {visibility}` | Nearby only: list/unlist in the lobby |
-| `signal {to, payload}` | `payload` = `offer` / `answer` / `ice`, relayed as-is |
+| `signal {to, payload}` | `payload` = `offer` / `answer` / `ice` / `invite` / `invite-reply` / `bye`, relayed as-is |
 | `delete-room {ownerToken}` | Private rooms, creator only |
 | `leave` | |
 
@@ -156,36 +184,42 @@ sequenceDiagram
   participant S as RoomDO
 
   C->>C: WS close / no pong within 10 s
-  C->>C: setConnected(false) → disconnectAll()
+  C->>C: setConnected(false), direct links stay up
   Note over C: backoff 1s, 2s, 4s … 30s (± jitter)
   C->>S: reconnect + replay join (token instead of password)
   S->>C: joined { self, peers }
-  C->>C: setConnected(true) → connectToPeer(each)
+  C->>C: keep links to returning peers, link new ones, release the rest
 ```
 
-On `visibilitychange` (tab visible) and `online`, the client pings immediately or skips the remaining backoff.
+A signaling outage doesn't touch direct links: peers keep sharing while the client reconnects. When a peer drops off signaling but our link to them is still open, the link is kept for 20 s in case they come straight back.
+
+On `visibilitychange` (tab visible) and `online`, the client pings the signaling server immediately (or skips the remaining backoff) and re-checks every direct link.
 
 ### WebRTC
 
 ```mermaid
 stateDiagram-v2
-  Idle --> Connecting: joined / peer-joined
+  Idle --> Connecting: auto-link / send / accepted invite
   Connecting --> Connected: data channel open
-  Connected --> Restarting: ICE failed (initiator)
-  Restarting --> Connected: ICE restart ok
-  Connected --> Idle: peer-left / WS drop
-  Connecting --> Idle: failed after 3 redials
+  Connected --> Connecting: ICE restart or redial (up to 3)
+  Connecting --> Failed: still no path
+  Failed --> Connecting: tap to retry / send again
+  Connected --> Idle: peer gone (after grace) / room switch / bye
 ```
 
-Only the peer with the lower peer id initiates. If both offer at once, the higher id rolls back and answers.
+- **Who links**: rooms of up to 8 other peers link everyone up front. Bigger rooms link **on demand**: when you send to someone or open something they shared, `PeerMesh.ensure()` dials and waits for the channel (20 s timeout). Only room members and accepted lobby links are ever dialed.
+- **Who offers**: for automatic links the lower peer id offers. On-demand and lobby links are offered by whoever needs them. If both offer at once, the lower id wins and the other rolls back.
+- **Recovery**: the offerer repairs a broken path with an ICE restart (keeps the data channel), then redials up to 3 times. After that the peer shows **"no direct link · tap to retry"** on the radar. Failed sends name the peers that couldn't be reached.
+- Link state per peer (`connecting` / `connected` / `failed`) lives in `connection-store` and drives the radar labels.
 
 ## Sharing data
 
 ```
 Sender: shareItem(item, target?)
-  -> send via RTCDataChannel (to one peer, a set, or everyone in the room)
-  -> addItem(item) to local store + Dexie
-  -> feed updates immediately
+  -> addItem(item) to local store + Dexie, feed updates immediately
+  -> for each recipient (one peer, a set, or everyone in the room):
+       ensure a direct link, then send over the data channel
+  -> recipients that couldn't be reached are reported in the error banner
 
 Receiver: onmessage -> parse PeerMessage
   -> dedupe by id -> addItem(item)
@@ -215,5 +249,8 @@ Files are offered as metadata only; bytes are streamed on request (`file-request
 - **Tokens, not passwords, on devices**: join tokens are per-peer HMACs; owner tokens are stored hashed on the server.
 - **Hibernation + attachments**: the signaling server costs nothing while idle and survives eviction without losing who is connected.
 - **Lobby is a directory, not a broadcast**: phones never receive worldwide presence; they page through it over HTTP when needed.
-- **Lower peer id initiates**: deterministic tie-break for simultaneous offers.
+- **Consent before contact**: lobby peers exchange nothing, not even ICE candidates, until an invite is accepted.
+- **Link on demand in big rooms**: phones never hold dozens of idle peer connections.
+- **Signaling is not on the data path**: direct links outlive signaling outages.
+- **Lower peer id wins glare**: deterministic tie-break for simultaneous offers.
 - **No server storage of content**: messages, files and avatars only ever exist on peers.
