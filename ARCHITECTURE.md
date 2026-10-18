@@ -46,6 +46,8 @@ graph TD
 | `src/lib/peer-protocol.ts` | Runtime validation of every message another peer sends |
 | `src/lib/transfer/` | File transfer: `manager` (requests, authorization, state), `stream` (binary send/receive with flow control), `sinks` (disk or memory), `save` |
 | `src/lib/avatar.ts` | Shrinks a picked image to a 128px avatar |
+| `src/lib/storage.ts` | Storage usage report and persistent-storage requests |
+| `workers/signaling/src/origin.ts` | Which websites may use the worker from a browser |
 | `src/lib/world-links.ts` | `WorldLinks`: invite / accept / decline / bye with people on other networks |
 | `src/hooks/use-mesh.ts` | Creates the mesh once and keeps it in step with the room (who to link, leave grace, wake) |
 | `src/hooks/use-room.ts` | Glue: signaling ↔ mesh, sharing, file transfer, avatars |
@@ -282,6 +284,19 @@ sequenceDiagram
 | Nearby `RoomDO` | Nothing persisted |
 | Private `RoomDO` | `meta` (above) + failed-attempt counters; wiped on delete or 24 h after empty |
 | `WorldDO` | `peers(id, name, net, seen)` for lobby-visible peers; pruned after 3 min without refresh |
+
+## Installable app (PWA)
+
+| Piece | Where | What it does |
+|---|---|---|
+| Manifest | `src/app/manifest.ts` (served as `/manifest.webmanifest`) | Name, icons, standalone display, Android share target |
+| Icons | `public/icons/` | 192/512 px, maskable 512 px, Apple touch icon, SVG |
+| Service worker | `public/sw.js` | Caches hashed build files (cache-first) and pages (network-first, offline fallback). Never touches the signaling worker, WebSockets or third-party requests |
+| Setup | `src/components/pwa-setup.tsx` | Registers the service worker (production, secure contexts only), captures the install prompt, picks up shares |
+
+**Share target (Android):** the OS posts shared files/text to `/share-target`. The service worker parks them in Cache Storage (`zr-share`) and opens `/?share=1`; `lib/share-intake.ts` reads them and the composer stages them so you pick who gets them. Shared file bodies stay cached until the next share or "Erase all data", because peers may still download them from you.
+
+
 
 ## Key design decisions
 

@@ -21,6 +21,7 @@
 | **Phone-friendly transfers** | Big files stream straight to disk instead of RAM, with progress on both sides, speed, cancel, and clear errors (no space, sender offline, file gone) |
 | **Retention Model** | Per-item: session, 5min, 1h, 1d, or forever. See and manage what's stored on your device from your profile |
 | **Zero Backend DB** | IndexedDB on each peer for persistence - nothing stored on the server |
+| **Installable app** | Install it on your phone or desktop like a native app. On Android, share photos and files into ZeroRelay straight from the share sheet |
 
 ---
 
@@ -54,6 +55,18 @@ npm run dev:worker
 ```
 
 > Each browser profile is one identity, so two tabs of the same browser replace each other (the newest wins). Use two browsers, a private window, or a second device.
+
+---
+
+## Install as an app
+
+| Device | How |
+|---|---|
+| **Android (Chrome)** | Open the site, then **Install app** in your profile (or the browser menu > *Install app*). After installing, ZeroRelay appears in the **Share** menu of other apps |
+| **iPhone / iPad (Safari)** | **Share** > **Add to Home Screen** |
+| **Desktop (Chrome / Edge)** | The install icon in the address bar, or **Install app** in your profile |
+
+The installed app opens in its own window and starts instantly. Like any app on a phone, transfers continue only while it's open. On iOS the installed app keeps its own storage, separate from Safari.
 
 
 ## Architecture
