@@ -1,6 +1,7 @@
 "use client";
 
-import { CodeCard, FileCard, MarkdownCard } from "@/components/room/message-feed";
+import { FileCard } from "@/components/room/file-card";
+import { CodeCard, MarkdownCard } from "@/components/room/message-feed";
 import { useStorage } from "@/hooks/use-storage";
 import { hashString } from "@/lib/hash";
 import { isMarkdownFileName } from "@/lib/markdown";
