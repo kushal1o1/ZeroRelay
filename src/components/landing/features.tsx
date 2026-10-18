@@ -4,8 +4,8 @@ const features = [
     desc: "Every peer connects to every other peer directly. No central server bottleneck.",
   },
   {
-    title: "Password Rooms",
-    desc: "Room-level passwords enforced server-side. Only the right people get in.",
+    title: "Private Rooms",
+    desc: "Share a room code, add an optional password. Only the creator can delete it.",
   },
   {
     title: "Any File Type",
@@ -17,7 +17,7 @@ const features = [
   },
   {
     title: "Local Network",
-    desc: "LAN detection finds peers on your network for low-latency transfers.",
+    desc: "Global is scoped to your network: devices on the same WiFi find each other instantly.",
   },
   {
     title: "Dark Mode",

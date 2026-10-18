@@ -70,7 +70,7 @@ export default function LandingPage() {
             {
               step: "01",
               title: "Create a Room",
-              desc: "Pick a name and optional password. Rooms are instant - no signup needed.",
+              desc: "Devices on your WiFi meet in Global automatically. For a private room, pick a name, share the code. No signup.",
             },
             {
               step: "02",
