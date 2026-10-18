@@ -5,8 +5,8 @@ import { type Incoming, applyChunk, finalizeDownload, sendFileInChunks } from "@
 import { ensureLocalIPs } from "@/lib/ice";
 import { generateId } from "@/lib/id";
 import { useAvatarStore } from "@/stores/avatar-store";
-import { useMessageStore } from "@/stores/message-store";
 import { useMarkdownPreviewStore } from "@/stores/markdown-preview-store";
+import { useMessageStore } from "@/stores/message-store";
 import { useRoomStore } from "@/stores/room-store";
 import type {
   AvatarMessage,
@@ -118,7 +118,9 @@ export function useRoom() {
           if (isPreview) {
             new Blob(entry.parts, { type: item?.mime || "text/markdown" })
               .text()
-              .then((content) => useMarkdownPreviewStore.getState().setContent(msg.sharedItemId, content))
+              .then((content) =>
+                useMarkdownPreviewStore.getState().setContent(msg.sharedItemId, content),
+              )
               .catch(() => useMarkdownPreviewStore.getState().setError(msg.sharedItemId));
           } else {
             finalizeDownload(entry, item?.fileName || "download", item?.mime || "");
