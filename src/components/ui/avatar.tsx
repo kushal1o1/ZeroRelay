@@ -11,7 +11,7 @@ interface AvatarProps {
 const sizeMap = { sm: "size-7 text-xs", md: "size-10 text-sm", lg: "size-14 text-lg" };
 const imgSizeMap = { sm: "size-7", md: "size-10", lg: "size-14" };
 
-// Monochrome palette — distinct gray shades (all dark enough for white text)
+// Monochrome palette: distinct gray shades (all dark enough for white text)
 const colors = [
   "bg-neutral-800",
   "bg-neutral-600",

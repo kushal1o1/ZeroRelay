@@ -5,7 +5,7 @@ import { type ItemType, RETENTION_LABELS, type Retention } from "@/types/message
 import { useEffect, useRef, useState } from "react";
 
 interface ComposerProps {
-  /** Everyone in the room except me — pickable recipients. */
+  /** Everyone in the room except me: pickable recipients. */
   peers: { id: string; name: string }[];
   selectedPeerIds: string[];
   onTogglePeer: (id: string) => void;

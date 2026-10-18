@@ -40,7 +40,7 @@ export function NoteCard({ item }: { item: SharedItem }) {
       onClick={() => open(item)}
     >
       {item.content}
-      <span className="zr-note-by">— {item.peerName}</span>
+      <span className="zr-note-by">~ {item.peerName}</span>
     </button>
   );
 }
@@ -241,7 +241,7 @@ export function ChatFeed() {
   if (roomItems.length === 0) {
     return (
       <div className="flex h-full items-center justify-center p-6 text-center text-sm text-muted-foreground">
-        No messages yet — share something below.
+        No messages yet. Share something below.
       </div>
     );
   }

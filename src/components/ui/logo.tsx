@@ -36,7 +36,7 @@ function ThetaIcon({ className = "" }: { className?: string }) {
 /**
  * The ZeroRelay wordmark: a bold, 3D theta (the brand icon, standing in for
  * "0") tight against a bold "Relay". Both pull from the same black/white
- * foreground token — "Relay" is dialed down slightly via opacity so the icon
+ * foreground token; "Relay" is dialed down slightly via opacity so the icon
  * reads as the anchor without introducing a second color.
  */
 export function Logo({

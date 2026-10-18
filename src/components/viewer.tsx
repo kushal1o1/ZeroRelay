@@ -150,7 +150,7 @@ export function Viewer() {
       ) : item ? (
         <div className={`zr-note zr-note-big ${noteColor}`} style={{ cursor: "default" }}>
           {code}
-          <span className="zr-note-by">— {item.peerName}</span>
+          <span className="zr-note-by">~ {item.peerName}</span>
         </div>
       ) : null}
     </div>

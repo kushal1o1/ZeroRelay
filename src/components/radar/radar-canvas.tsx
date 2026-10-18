@@ -28,13 +28,13 @@ interface RadarCanvasProps {
   selectedPeerIds: string[];
   onTogglePeer: (id: string) => void;
   onRename: () => void;
-  /** Business action only — the canvas plays its own animation. */
+  /** Business action only; the canvas plays its own animation. */
   onSendFile: (file: File, targetPeerId: string | null) => void;
 }
 
 interface Packet {
   id: number;
-  // start (from) and end (to) points — send flies centre→peer, receive peer→centre
+  // start (from) and end (to) points: send flies centre→peer, receive peer→centre
   fx: number;
   fy: number;
   tx: number;

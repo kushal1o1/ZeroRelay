@@ -2,7 +2,7 @@
 
 @custom-variant dark (&:where(.dark, .dark *));
 
-/* ── LIGHT (default) — white canvas, black ink, gray accents ── */
+/* ── LIGHT (default): white canvas, black ink, gray accents ── */
 :root {
   --color-background: #ffffff;
   --color-foreground: #171717;
@@ -41,7 +41,7 @@
   --star-display: none;
 }
 
-/* ── DARK — near-black canvas, white ink, gray accents ── */
+/* ── DARK: near-black canvas, white ink, gray accents ── */
 .dark {
   --color-background: #0a0a0a;
   --color-foreground: #f5f5f5;
@@ -177,7 +177,7 @@ body {
     opacity: 0.85;
   }
 }
-/* continuous radar "ping" — expanding ring from the centre (like the homepage) */
+/* continuous radar "ping": expanding ring from the centre (like the homepage) */
 @keyframes zr-ping {
   0% {
     transform: translate(-50%, -50%) scale(0.32);
@@ -220,7 +220,7 @@ body {
 }
 
 /* ══════════════════════════════════════════════════════════════
-   Tactile buttons — ink outline + hard offset shadow + pressable
+   Tactile buttons: ink outline + hard offset shadow + pressable
    ══════════════════════════════════════════════════════════════ */
 .zr-tactile {
   border: 2px solid var(--t-edge);

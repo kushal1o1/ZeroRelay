@@ -15,7 +15,7 @@ interface YouNodeProps {
 
 const noop = () => {};
 
-/** The "sun" at the center of the system — you. Doubles as the broadcast target. */
+/** The "sun" at the center of the system: you. Doubles as the broadcast target. */
 export function YouNode({ name, x, y, onRename, onDropFile }: YouNodeProps) {
   const myPeerId = useRoomStore((s) => s.peerId);
   const avatar = useAvatarStore((s) => s.map[myPeerId]);
