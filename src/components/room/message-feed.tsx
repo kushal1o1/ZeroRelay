@@ -176,7 +176,6 @@ export function FileCard({ item }: { item: SharedItem }) {
         <button
           type="button"
           onClick={handleClick}
-          disabled={transfer === "preview"}
           className="mt-2 inline-flex items-center gap-1.5 rounded-lg bg-accent px-3 py-1 font-mono text-[11px] font-semibold text-accent-foreground transition-opacity hover:opacity-90 disabled:opacity-50"
         >
           ↓ download
