@@ -54,23 +54,6 @@ npm run dev:worker
 
 > Each browser profile is one identity, so two tabs of the same browser replace each other (the newest wins). Use two browsers, a private window, or a second device.
 
-**Testing on a phone:** open `http://<your-computer's-LAN-IP>:3000` on the phone. The client connects to the worker on port `8787` of the same host. All private/LAN addresses are grouped into one network in development, so your devices find each other.
-
----
-
-## Deploying
-
-The web app (e.g. Vercel) and the signaling worker (Cloudflare) **must be deployed together** - they share a versioned protocol, and an outdated client is asked to refresh.
-
-```bash
-cd workers/signaling
-npx wrangler secret put IP_SALT   # any long random string; salts the network hashes
-npx wrangler deploy
-```
-
-Then set `NEXT_PUBLIC_SIGNALING_URL=wss://<your-worker-host>/api/ws` for the web app.
-
----
 
 ## Architecture
 
