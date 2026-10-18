@@ -92,7 +92,7 @@ sequenceDiagram
 - Offers, answers and candidates arriving `via: "world"` are dropped unless the link is accepted.
 - Declining mutes that person's invites for 10 minutes. Unanswered invites expire after 60 s.
 - Either side can end the link (`bye`). Links are dropped when you leave the Global room.
-- Accepted lobby links appear on the radar as "other network" and can be picked as recipients. "Everyone" sends still go to room members only.
+- Accepted lobby links appear on the radar as "other network" and can be picked as recipients. "Everyone" sends to everyone you're connected to: room members plus accepted lobby links (and they may download files shared that way).
 - There is no relay: if the two networks block direct connections, both sides see "Couldn't connect directly".
 
 ### Private rooms
@@ -258,7 +258,7 @@ sequenceDiagram
 - **Chunk size**: as large as the receiving browser accepts (the link's max message size), capped at 256 KB; 64 KB when the browser doesn't say.
 - **Flow control**: the receiver acks bytes it has *written*, and the owner never runs more than 16 MB ahead of that, nor lets the channel buffer pass 8 MB. A slow phone disk can't make data pile up in memory.
 - **Storage**: files over 8 MB are written straight to the Origin Private File System (on disk, invisible to the user) when the browser supports it, after checking free space. Smaller files, and browsers without OPFS writes (including plain-http pages), use memory, up to 512 MB. Received copies are kept for the session so "Save again" needs no re-transfer, and are cleared on the next start and by "Erase all data".
-- **Authorization**: a file sent to specific people is only served to them. A file sent to everyone is served to members of the room it was shared in.
+- **Authorization**: a file sent to specific people is only served to them. A file sent to everyone is served to members of the room it was shared in, plus accepted lobby links when shared in Global.
 - **Status on both sides**: requesting, progress and speed, done, failed with a reason, or cancelled. Either side can cancel. A transfer fails if no data (or no ack) arrives for 30 s, or if the link drops.
 - **Integrity**: the receiver checks the exact byte count against the shared size; the data channel itself is reliable and ordered.
 - If the owner reloaded or left, the card says the file is unavailable instead of hanging.

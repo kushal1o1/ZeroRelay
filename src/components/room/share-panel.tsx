@@ -6,7 +6,7 @@ import { type ItemType, MAX_TEXT_CHARS, RETENTION_LABELS, type Retention } from 
 import { useEffect, useRef, useState } from "react";
 
 interface ComposerProps {
-  /** Everyone in the room except me: pickable recipients. */
+  /** Everyone I'm connected to (room members and lobby links): pickable recipients. */
   peers: { id: string; name: string }[];
   selectedPeerIds: string[];
   onTogglePeer: (id: string) => void;
@@ -53,7 +53,9 @@ export function Composer({
   const targetNames = peers.filter((p) => selectedPeerIds.includes(p.id)).map((p) => p.name);
   const targetShort =
     targetNames.length === 0
-      ? "Everyone"
+      ? peers.length > 0
+        ? `Everyone · ${peers.length}`
+        : "Everyone"
       : targetNames.length === 1
         ? targetNames[0]
         : `${targetNames.length} people`;

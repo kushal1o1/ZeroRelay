@@ -101,9 +101,10 @@ export function useRoom() {
     transfersRef.current = new TransferManager({
       mesh,
       ensure: (id) => (isReachable(id) ? mesh.ensure(id) : Promise.resolve(false)),
-      inRoom: (id, roomId) => {
+      inAudience: (id, roomId) => {
         const s = useRoomStore.getState();
-        return s.roomId === roomId && s.peers.some((p) => p.id === id);
+        if (s.roomId !== roomId) return false;
+        return s.peers.some((p) => p.id === id) || (roomId === NEARBY_ROOM_ID && isLinked(id));
       },
       peerName,
     });
@@ -294,12 +295,19 @@ function stampSender(item: SharedItem, from: string): SharedItem | null {
   return null;
 }
 
-/** Everyone a share goes to: the given targets, or the whole room. */
+/** Everyone a share goes to: the given targets, or everyone we're connected
+ *  to (room members, plus accepted lobby links while in Global). */
 function recipientsFor(target?: string | string[]): string[] {
   if (target) return Array.isArray(target) ? target : [target];
   const state = useRoomStore.getState();
-  // "Everyone" means everyone in the room; lobby links only get direct sends.
-  return state.peers.map((p) => p.id).filter((id) => id !== state.peerId);
+  const ids = new Set(state.peers.map((p) => p.id));
+  if (state.roomId === NEARBY_ROOM_ID) {
+    for (const link of Object.values(useLobbyStore.getState().links)) {
+      if (link.status === "linked") ids.add(link.id);
+    }
+  }
+  ids.delete(state.peerId);
+  return [...ids];
 }
 
 function newItem(fields: Pick<SharedItem, "type" | "retention"> & Partial<SharedItem>): SharedItem {

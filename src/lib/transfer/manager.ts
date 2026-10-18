@@ -20,15 +20,15 @@ export interface TransferDeps {
   mesh: PeerMesh;
   /** Open (or wait for) a link to a peer we're allowed to dial. */
   ensure: (peerId: string) => Promise<boolean>;
-  /** Is this peer currently in room `roomId` with us? */
-  inRoom: (peerId: string, roomId: string) => boolean;
+  /** Would "Everyone" in room `roomId` currently include this peer? */
+  inAudience: (peerId: string, roomId: string) => boolean;
   peerName: (peerId: string) => string;
 }
 
 interface Offered {
   file: File;
   roomId: string;
-  /** Direct share: only these peers may fetch it. `null` = anyone in the room. */
+  /** Direct share: only these peers may fetch it. `null` = shared with everyone. */
   recipients: Set<string> | null;
 }
 
@@ -69,7 +69,7 @@ export class TransferManager {
     }
     const allowed = offered.recipients
       ? offered.recipients.has(from)
-      : this.deps.inRoom(from, offered.roomId);
+      : this.deps.inAudience(from, offered.roomId);
     if (!allowed) return this.refuse(from, req, "This file wasn't shared with you.");
 
     const ch = this.deps.mesh.openChannel(from, TRANSFER_CHANNEL_PREFIX + req.transferId);
