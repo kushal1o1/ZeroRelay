@@ -42,7 +42,10 @@ graph TD
 | `src/lib/identity.ts` | Our secret + derived peer id (localStorage) |
 | `src/lib/signaling.ts` | `SignalingClient`: one socket, backoff + jitter, heartbeat, join replay |
 | `src/hooks/use-signaling.ts` | Join/leave/delete/rename/visibility; maps server messages into stores |
-| `src/lib/peer-mesh.ts` | `PeerMesh`: every WebRTC link of this device. Offers, glare, ICE restart, redials, wait-for-open |
+| `src/lib/peer-mesh.ts` | `PeerMesh`: every WebRTC link of this device. Offers, glare, ICE restart, redials, wait-for-open, extra channels |
+| `src/lib/peer-protocol.ts` | Runtime validation of every message another peer sends |
+| `src/lib/transfer/` | File transfer: `manager` (requests, authorization, state), `stream` (binary send/receive with flow control), `sinks` (disk or memory), `save` |
+| `src/lib/avatar.ts` | Shrinks a picked image to a 128px avatar |
 | `src/lib/world-links.ts` | `WorldLinks`: invite / accept / decline / bye with people on other networks |
 | `src/hooks/use-mesh.ts` | Creates the mesh once and keeps it in step with the room (who to link, leave grace, wake) |
 | `src/hooks/use-room.ts` | Glue: signaling ↔ mesh, sharing, file transfer, avatars |
@@ -221,18 +224,48 @@ Sender: shareItem(item, target?)
        ensure a direct link, then send over the data channel
   -> recipients that couldn't be reached are reported in the error banner
 
-Receiver: onmessage -> parse PeerMessage
-  -> dedupe by id -> addItem(item)
-  -> feed updates
+Receiver: onmessage -> validate (peer-protocol.ts)
+  -> sender name / id / room taken from our own view of the sender, never the payload
+  -> dedupe by id -> addItem(item) -> feed updates
 ```
 
-Files are offered as metadata only; bytes are streamed on request (`file-request` → `file-chunk`s) so nothing is transferred until someone downloads or previews. 
+Every message from another peer is validated before use; unknown or malformed messages are dropped. Shares are only accepted from room members and accepted lobby links.
+
+### File transfer
+
+Files are offered as metadata only. Bytes move when someone downloads or previews, each transfer on its own data channel so chat never waits behind a file.
+
+```mermaid
+sequenceDiagram
+  participant R as Receiver
+  participant O as Owner
+
+  Note over R: prepare storage (disk or memory), check free space
+  R->>O: file-request { sharedItemId, transferId, purpose } (main channel)
+  Note over O: still have it? shared with this peer?
+  O->>R: opens channel "xfer:<transferId>"
+  O->>R: { t: start, size }
+  loop 64 KB binary chunks
+    O->>R: chunk
+    R-->>O: { t: ack, bytes } every 1 MB written
+  end
+  O->>R: { t: end }
+  R-->>O: { t: ack, bytes: size }
+```
+
+- **Flow control**: the receiver acks bytes it has *written*, and the owner never runs more than 8 MB ahead of that (plus the channel's own buffer limit). A slow phone disk can't make data pile up in memory.
+- **Storage**: files over 8 MB are written straight to the Origin Private File System (on disk, invisible to the user) when the browser supports it, after checking free space. Smaller files, and browsers without OPFS writes (including plain-http pages), use memory, up to 512 MB. Received copies are kept for the session so "Save again" needs no re-transfer, and are cleared on the next start and by "Erase all data".
+- **Authorization**: a file sent to specific people is only served to them. A file sent to everyone is served to members of the room it was shared in.
+- **Status on both sides**: requesting, progress and speed, done, failed with a reason, or cancelled. Either side can cancel. A transfer fails if no data (or no ack) arrives for 30 s, or if the link drops.
+- **Integrity**: the receiver checks the exact byte count against the shared size; the data channel itself is reliable and ordered.
+- If the owner reloaded or left, the card says the file is unavailable instead of hanging.
 
 ## Storage (per peer)
 
 | Storage | Content |
 |---|---|
 | IndexedDB (Dexie) | `messages` (SharedItem), `avatars` (peerId → dataUrl) |
+| Origin Private File System (`zerorelay-incoming/`) | Received large files for the current session |
 | localStorage | Identity secret, display name, theme |
 | localStorage (`zerorelay-rooms`, Zustand persist v2) | Saved rooms with join/owner tokens (never passwords), active room, lobby visibility |
 
@@ -253,4 +286,6 @@ Files are offered as metadata only; bytes are streamed on request (`file-request
 - **Link on demand in big rooms**: phones never hold dozens of idle peer connections.
 - **Signaling is not on the data path**: direct links outlive signaling outages.
 - **Lower peer id wins glare**: deterministic tie-break for simultaneous offers.
+- **One channel per transfer, acks after writes**: files can't block chat, and memory stays flat however big the file.
+- **Peers are untrusted**: every peer message is validated, and who-sent-what comes from the link, not the payload.
 - **No server storage of content**: messages, files and avatars only ever exist on peers.
