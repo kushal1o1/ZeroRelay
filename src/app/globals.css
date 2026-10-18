@@ -641,6 +641,113 @@ body {
   font-family: var(--font-note);
   font-size: 18px;
 }
+.zr-compose-markdown textarea {
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+/* Markdown preview */
+.zr-markdown {
+  color: var(--color-foreground);
+  font-size: 14px;
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}
+.zr-markdown > :first-child {
+  margin-top: 0;
+}
+.zr-markdown > :last-child {
+  margin-bottom: 0;
+}
+.zr-markdown h1,
+.zr-markdown h2,
+.zr-markdown h3,
+.zr-markdown h4,
+.zr-markdown h5,
+.zr-markdown h6 {
+  margin: 1.25em 0 0.5em;
+  color: var(--color-foreground);
+  font-weight: 700;
+  line-height: 1.25;
+}
+.zr-markdown h1 {
+  font-size: 1.8em;
+}
+.zr-markdown h2 {
+  font-size: 1.5em;
+  border-bottom: 1px solid var(--color-border);
+  padding-bottom: 0.25em;
+}
+.zr-markdown h3 {
+  font-size: 1.2em;
+}
+.zr-markdown p,
+.zr-markdown ul,
+.zr-markdown ol,
+.zr-markdown blockquote,
+.zr-markdown pre,
+.zr-markdown table {
+  margin: 0.85em 0;
+}
+.zr-markdown ul,
+.zr-markdown ol {
+  padding-left: 1.5em;
+}
+.zr-markdown ul {
+  list-style: disc;
+}
+.zr-markdown ol {
+  list-style: decimal;
+}
+.zr-markdown a {
+  color: var(--color-accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.zr-markdown blockquote {
+  border-left: 3px solid var(--color-border);
+  padding-left: 1em;
+  color: var(--color-muted-foreground);
+}
+.zr-markdown pre {
+  overflow-x: auto;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  background: var(--panel-2);
+  padding: 12px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+.zr-markdown :not(pre) > code {
+  border-radius: 4px;
+  background: var(--panel-2);
+  padding: 0.1em 0.35em;
+  font-family: var(--font-mono);
+  font-size: 0.9em;
+}
+.zr-markdown table {
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
+  border-collapse: collapse;
+}
+.zr-markdown th,
+.zr-markdown td {
+  border: 1px solid var(--color-border);
+  padding: 6px 10px;
+  text-align: left;
+}
+.zr-markdown th {
+  background: var(--panel-2);
+  font-weight: 600;
+}
+.zr-markdown img {
+  max-width: 100%;
+  height: auto;
+}
+.zr-markdown input[type="checkbox"] {
+  margin-right: 0.45em;
+}
 .zr-nc {
   width: 18px;
   height: 18px;

@@ -1,19 +1,21 @@
 "use client";
 
-import { CodeCard, FileCard } from "@/components/room/message-feed";
+import { CodeCard, FileCard, MarkdownCard } from "@/components/room/message-feed";
 import { useStorage } from "@/hooks/use-storage";
 import { hashString } from "@/lib/hash";
+import { isMarkdownFileName } from "@/lib/markdown";
 import { useUIStore } from "@/stores/ui-store";
 import { useViewerStore } from "@/stores/viewer-store";
 import type { SharedItem } from "@/types/message";
 import { type RefObject, useCallback, useEffect, useRef, useState } from "react";
 
-type BoardTab = "note" | "code" | "file";
+type BoardTab = "note" | "code" | "file" | "markdown";
 
 const TABS: { k: BoardTab; label: string }[] = [
   { k: "note", label: "📌 Notes" },
   { k: "code", label: "⌨ Code" },
   { k: "file", label: "📄 Files" },
+  { k: "markdown", label: "M↓ MD" },
 ];
 
 const NOTE_COLORS = ["", "zr-note-pink", "zr-note-green", "zr-note-blue"];
@@ -179,7 +181,13 @@ export function SideBoard() {
   const [tab, setTab] = useState<BoardTab>("note");
 
   const list = items
-    .filter((i) => i.roomId === activeRoomId && i.type === tab)
+    .filter(
+      (i) =>
+        i.roomId === activeRoomId &&
+        (tab === "markdown"
+          ? i.type === "markdown" || (i.type === "file" && isMarkdownFileName(i.fileName))
+          : i.type === tab),
+    )
     .slice()
     .sort((a, b) => b.timestamp - a.timestamp);
 
@@ -210,7 +218,13 @@ export function SideBoard() {
           ) : (
             <div className="flex flex-col gap-3">
               {list.map((item) =>
-                tab === "code" ? (
+                tab === "markdown" ? (
+                  item.type === "markdown" ? (
+                    <MarkdownCard key={item.id} item={item} />
+                  ) : (
+                    <FileCard key={item.id} item={item} />
+                  )
+                ) : tab === "code" ? (
                   <CodeCard key={item.id} item={item} />
                 ) : (
                   <FileCard key={item.id} item={item} />

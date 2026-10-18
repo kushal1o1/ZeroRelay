@@ -9,12 +9,13 @@ export const RETENTION_LABELS: Record<Retention, string> = {
   forever: "Forever",
 };
 
-export type ItemType = "text" | "code" | "note" | "file";
+export type ItemType = "text" | "code" | "note" | "markdown" | "file";
 
 export const ITEM_TYPE_LABELS: Record<ItemType, string> = {
   text: "Chat",
   code: "Code",
   note: "Note",
+  markdown: "Markdown",
   file: "File",
 };
 
@@ -41,6 +42,7 @@ export interface DataMessage {
 export interface FileRequest {
   type: "file-request";
   sharedItemId: string;
+  purpose?: "download" | "preview";
 }
 
 export interface FileChunk {
@@ -51,10 +53,16 @@ export interface FileChunk {
   data: string; // base64 encoded chunk
 }
 
+export interface FileError {
+  type: "file-error";
+  sharedItemId: string;
+  message?: string;
+}
+
 export interface AvatarMessage {
   type: "avatar";
   dataUrl: string;
 }
 
 // Anything that can arrive over a peer data channel.
-export type PeerMessage = DataMessage | FileRequest | FileChunk | AvatarMessage;
+export type PeerMessage = DataMessage | FileRequest | FileChunk | FileError | AvatarMessage;

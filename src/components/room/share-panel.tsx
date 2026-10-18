@@ -18,6 +18,7 @@ const TYPES: { k: ItemType; label: string }[] = [
   { k: "text", label: "💬 Text" },
   { k: "note", label: "🗒️ Note" },
   { k: "code", label: "⌨️ Code" },
+  { k: "markdown", label: "M↓ Markdown" },
   { k: "file", label: "📄 File" },
 ];
 const RETENTIONS: Retention[] = ["session", "5min", "1h", "1d", "forever"];
@@ -26,6 +27,7 @@ const PLACEHOLDER: Record<ItemType, string> = {
   text: "Message everyone…",
   note: "Write a sticky note…",
   code: "Paste code…",
+  markdown: "Write Markdown…",
   file: "",
 };
 
@@ -239,7 +241,13 @@ export function Composer({
       ) : (
         <div
           className={`zr-input-row ${
-            type === "code" ? "zr-compose-code" : type === "note" ? "zr-compose-note" : ""
+            type === "code"
+              ? "zr-compose-code"
+              : type === "note"
+                ? "zr-compose-note"
+                : type === "markdown"
+                  ? "zr-compose-markdown"
+                  : ""
           }`}
         >
           <textarea

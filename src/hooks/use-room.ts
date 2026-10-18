@@ -5,6 +5,7 @@ import { type Incoming, applyChunk, finalizeDownload, sendFileInChunks } from "@
 import { ensureLocalIPs } from "@/lib/ice";
 import { generateId } from "@/lib/id";
 import { useAvatarStore } from "@/stores/avatar-store";
+import { useMarkdownPreviewStore } from "@/stores/markdown-preview-store";
 import { useMessageStore } from "@/stores/message-store";
 import { useRoomStore } from "@/stores/room-store";
 import type {
@@ -26,6 +27,9 @@ export function useRoom() {
   const outgoingFilesRef = useRef<Map<string, File>>(new Map());
   // In-progress incoming file reassembly (sharedItemId -> buffer/state).
   const incomingRef = useRef<Map<string, Incoming>>(new Map());
+  const previewRequestsRef = useRef<Set<string>>(new Set());
+  const discardedPreviewIdsRef = useRef<Set<string>>(new Set());
+  const previewTimeoutsRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
   // WebRTC send fns, filled after useWebRTC — breaks the onData<->send cycle.
   const rtcRef = useRef<{
     sendToPeer: (peerId: string, data: string) => boolean;
@@ -66,15 +70,71 @@ export function useRoom() {
             rtcRef.current.sendToPeer,
             rtcRef.current.bufferedAmount,
           ).catch((err) => console.warn("File send failed", err));
+        } else {
+          const response = {
+            type: "file-error",
+            sharedItemId: msg.sharedItemId,
+            message: "The sender no longer has this file available.",
+          };
+          rtcRef.current.sendToPeer(fromPeerId, JSON.stringify(response));
         }
         break;
       }
+      case "file-error": {
+        const isPreview = previewRequestsRef.current.has(msg.sharedItemId);
+        const timeout = previewTimeoutsRef.current.get(msg.sharedItemId);
+        if (timeout) clearTimeout(timeout);
+        previewTimeoutsRef.current.delete(msg.sharedItemId);
+        incomingRef.current.delete(msg.sharedItemId);
+        previewRequestsRef.current.delete(msg.sharedItemId);
+        discardedPreviewIdsRef.current.delete(msg.sharedItemId);
+        if (isPreview) {
+          useMarkdownPreviewStore.getState().setError(msg.sharedItemId);
+        } else if (store.transfers[msg.sharedItemId] === "download") {
+          store.clearProgress(msg.sharedItemId);
+        }
+        store.setTransferMode(msg.sharedItemId, null);
+        break;
+      }
       case "file-chunk": {
+        if (discardedPreviewIdsRef.current.has(msg.sharedItemId)) break;
+        const timeout = previewTimeoutsRef.current.get(msg.sharedItemId);
+        if (timeout) {
+          clearTimeout(timeout);
+          previewTimeoutsRef.current.delete(msg.sharedItemId);
+        }
         const { entry, done } = applyChunk(incomingRef.current, msg);
-        store.setProgress(msg.sharedItemId, entry.total > 0 ? entry.received / entry.total : 1);
+        const isPreview = previewRequestsRef.current.has(msg.sharedItemId);
+        if (!isPreview) {
+          store.setProgress(msg.sharedItemId, entry.total > 0 ? entry.received / entry.total : 1);
+        }
         if (done) {
+          const timeout = previewTimeoutsRef.current.get(msg.sharedItemId);
+          if (timeout) clearTimeout(timeout);
+          previewTimeoutsRef.current.delete(msg.sharedItemId);
+          previewRequestsRef.current.delete(msg.sharedItemId);
+          store.setTransferMode(msg.sharedItemId, null);
           const item = store.items.find((i) => i.id === msg.sharedItemId);
-          finalizeDownload(entry, item?.fileName || "download", item?.mime || "");
+          if (isPreview) {
+            new Blob(entry.parts, { type: item?.mime || "text/markdown" })
+              .text()
+              .then((content) =>
+                useMarkdownPreviewStore.getState().setContent(msg.sharedItemId, content),
+              )
+              .catch(() => useMarkdownPreviewStore.getState().setError(msg.sharedItemId));
+          } else {
+            finalizeDownload(entry, item?.fileName || "download", item?.mime || "");
+          }
+        } else if (isPreview) {
+          const timeout = setTimeout(() => {
+            incomingRef.current.delete(msg.sharedItemId);
+            previewRequestsRef.current.delete(msg.sharedItemId);
+            previewTimeoutsRef.current.delete(msg.sharedItemId);
+            discardedPreviewIdsRef.current.add(msg.sharedItemId);
+            useMessageStore.getState().setTransferMode(msg.sharedItemId, null);
+            useMarkdownPreviewStore.getState().setError(msg.sharedItemId);
+          }, 20_000);
+          previewTimeoutsRef.current.set(msg.sharedItemId, timeout);
         }
         break;
       }
@@ -284,15 +344,63 @@ export function useRoom() {
   // Receiver: ask the owner peer to stream a file's bytes; onData handles the
   // incoming chunks and triggers the browser download on completion.
   const requestFile = useCallback(
-    (item: SharedItem) => {
+    (item: SharedItem, purpose: "download" | "preview" = "download") => {
       if (item.type !== "file") return;
-      const req: FileRequest = { type: "file-request", sharedItemId: item.id };
-      useMessageStore.getState().setProgress(item.id, 0);
+      const store = useMessageStore.getState();
+      if (store.transfers[item.id]) {
+        if (purpose === "preview") {
+          useMarkdownPreviewStore.getState().beginFile(item);
+          useMarkdownPreviewStore.getState().setError(item.id);
+        }
+        return;
+      }
+      if (purpose === "preview") {
+        if (previewRequestsRef.current.has(item.id)) return;
+        discardedPreviewIdsRef.current.delete(item.id);
+        useMarkdownPreviewStore.getState().beginFile(item);
+        if (item.peerId === peerId) {
+          const file = outgoingFilesRef.current.get(item.id);
+          if (!file) {
+            useMarkdownPreviewStore.getState().setError(item.id);
+            return;
+          }
+          file
+            .text()
+            .then((content) => useMarkdownPreviewStore.getState().setContent(item.id, content))
+            .catch(() => useMarkdownPreviewStore.getState().setError(item.id));
+          return;
+        }
+        previewRequestsRef.current.add(item.id);
+      } else {
+        discardedPreviewIdsRef.current.delete(item.id);
+        store.setProgress(item.id, 0);
+      }
+      store.setTransferMode(item.id, purpose);
+      const req: FileRequest = { type: "file-request", sharedItemId: item.id, purpose };
       if (!sendToPeer(item.peerId, JSON.stringify(req))) {
         console.warn("Cannot request file: no open channel to owner");
+        store.setTransferMode(item.id, null);
+        if (purpose === "preview") {
+          previewRequestsRef.current.delete(item.id);
+          useMarkdownPreviewStore.getState().setError(item.id);
+        } else {
+          store.clearProgress(item.id);
+        }
+        return;
+      }
+      if (purpose === "preview") {
+        const timeout = setTimeout(() => {
+          incomingRef.current.delete(item.id);
+          previewRequestsRef.current.delete(item.id);
+          previewTimeoutsRef.current.delete(item.id);
+          discardedPreviewIdsRef.current.add(item.id);
+          useMessageStore.getState().setTransferMode(item.id, null);
+          useMarkdownPreviewStore.getState().setError(item.id);
+        }, 20_000);
+        previewTimeoutsRef.current.set(item.id, timeout);
       }
     },
-    [sendToPeer],
+    [sendToPeer, peerId],
   );
 
   const updateAvatar = useCallback(
