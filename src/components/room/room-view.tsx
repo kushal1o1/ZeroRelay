@@ -5,6 +5,7 @@ import { useRoomContext } from "@/components/room-provider";
 import { ChatFeed } from "@/components/room/message-feed";
 import { Composer } from "@/components/room/share-panel";
 import { SideBoard } from "@/components/room/side-board";
+import { useVisiblePeers } from "@/hooks/use-visible-peers";
 import { useMessageStore } from "@/stores/message-store";
 import { useRoomStore } from "@/stores/room-store";
 import { useUIStore } from "@/stores/ui-store";
@@ -22,7 +23,7 @@ const MOBILE_TABS: { k: MobileView; label: string }[] = [
 /** The room body: solar-system radar · pinned board · chat dock. All three read
  * the same store, so the radar always reflects the current room's members. */
 export function RoomView({ onEditProfile }: { onEditProfile: () => void }) {
-  const peers = useRoomStore((s) => s.peers);
+  const others = useVisiblePeers();
   const myPeerId = useRoomStore((s) => s.peerId);
   const connected = useRoomStore((s) => s.connected);
   const activeRoomId = useUIStore((s) => s.activeRoomId);
@@ -34,18 +35,16 @@ export function RoomView({ onEditProfile }: { onEditProfile: () => void }) {
   const [view, setView] = useState<MobileView>("chat");
   const radarRef = useRef<RadarHandle>(null);
 
-  const others = peers.filter((p) => p.id !== myPeerId);
-
   const togglePeer = (id: string) =>
     setSelectedPeerIds((ids) => (ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id]));
 
   // Drop any selected peers that have since left (or when the room changes).
   useEffect(() => {
     setSelectedPeerIds((ids) => {
-      const next = ids.filter((id) => peers.some((p) => p.id === id));
+      const next = ids.filter((id) => others.some((p) => p.id === id));
       return next.length === ids.length ? ids : next;
     });
-  }, [peers]);
+  }, [others]);
 
   // Play the incoming radar animation (packet → sun + ping) when a message
   // arrives from someone else. We track seen ids so existing history on first

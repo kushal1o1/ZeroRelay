@@ -32,6 +32,11 @@ function isSignalPayload(v: unknown): v is SignalPayload {
       return isObj(v.sdp) && typeof v.sdp.type === "string" && typeof v.sdp.sdp === "string";
     case "ice":
       return isObj(v.candidate) && typeof v.candidate.candidate === "string";
+    case "invite":
+    case "bye":
+      return true;
+    case "invite-reply":
+      return typeof v.accepted === "boolean";
     default:
       return false;
   }

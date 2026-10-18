@@ -14,9 +14,9 @@
 | | |
 |---|---|
 | **Global room, scoped to your network** | Open the app and you're in a room with every device on the same WiFi/router - strangers on other networks never land in it |
-| **Everyone lobby (opt-out)** | You can also be listed for people on other networks - name only, toggle it off in your profile |
+| **Everyone lobby** | Find people on other networks (Everyone), invite them, and share directly once they accept. Opt out in your profile |
 | **Private rooms** | Create a room, share its code; optional password, only the creator can delete it, auto-expires after 24 h empty |
-| **P2P Mesh** | Peers connect directly to each other over WebRTC - no central database |
+| **P2P Mesh** | Peers connect directly to each other over WebRTC. Big rooms link on demand, and links keep working through signaling outages |
 | **Share Any Type** | Chat, code (monospace), notes (italic), Markdown, or files of any size |
 | **Retention Model** | Per-item: session, 5min, 1h, 1d, or forever |
 | **Zero Backend DB** | IndexedDB on each peer for persistence - nothing stored on the server |
@@ -73,7 +73,7 @@ Each browser stores its own copy of everything in IndexedDB. When you share some
 ### Known limitations
 
 - "Same network" means "same public IP". Mobile carriers that put many users behind one IP (carrier-grade NAT) can group unrelated people, and a network with both IPv4 and IPv6 can split devices into two groups.
-- Without a relay server, some pairs of devices can't connect directly (strict NATs, some phones).
+- There is no relay server: some pairs of networks can't connect directly (strict NATs, many mobile carriers, some office networks). The app shows "Couldn't connect directly" and lets you retry. Devices on the same network always connect.
 
 ---
 
