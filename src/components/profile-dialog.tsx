@@ -7,6 +7,7 @@ import { Dialog } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { useAvatarStore } from "@/stores/avatar-store";
 import { useRoomStore } from "@/stores/room-store";
+import { useUIStore } from "@/stores/ui-store";
 import { useEffect, useRef, useState } from "react";
 
 function readFileAsDataURL(file: File): Promise<string> {
@@ -28,16 +29,19 @@ interface ProfileDialogProps {
 export function ProfileDialog({ open, onClose, onEraseAll }: ProfileDialogProps) {
   const myPeerId = useRoomStore((s) => s.peerId);
   const myName = useRoomStore((s) => s.name);
-  const { rename, updateAvatar } = useRoomContext();
+  const visibility = useUIStore((s) => s.visibility);
+  const { rename, updateAvatar, setVisibility } = useRoomContext();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [editName, setEditName] = useState(myName);
   const [editAvatar, setEditAvatar] = useState<string | null>(null);
+  const [listed, setListed] = useState(visibility === "world");
 
   useEffect(() => {
     if (open) {
       setEditName(myName);
       setEditAvatar(useAvatarStore.getState().map[myPeerId] || null);
+      setListed(useUIStore.getState().visibility === "world");
     }
   }, [open, myName, myPeerId]);
 
@@ -53,6 +57,8 @@ export function ProfileDialog({ open, onClose, onEraseAll }: ProfileDialogProps)
 
   const handleSave = () => {
     if (editName.trim() && editName.trim() !== myName) rename(editName.trim());
+    const nextVisibility = listed ? "world" : "hidden";
+    if (nextVisibility !== visibility) setVisibility(nextVisibility);
     onClose();
   };
 
@@ -89,6 +95,21 @@ export function ProfileDialog({ open, onClose, onEraseAll }: ProfileDialogProps)
           onChange={(e) => setEditName(e.target.value)}
           maxLength={32}
         />
+        <label className="flex cursor-pointer items-start gap-3 text-sm">
+          <input
+            type="checkbox"
+            checked={listed}
+            onChange={(e) => setListed(e.target.checked)}
+            className="mt-0.5 size-4 accent-[var(--accent)]"
+          />
+          <span>
+            <span className="text-foreground">Show me to people on other networks</span>
+            <span className="block text-xs text-muted-foreground">
+              Lists your name in the Global lobby. Nothing is sent to you unless you accept it.
+              People on your own network always see you.
+            </span>
+          </span>
+        </label>
         <div className="flex justify-end gap-2">
           <Button type="button" variant="ghost" onClick={onClose}>
             Cancel

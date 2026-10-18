@@ -3,6 +3,7 @@
 import { useRoomContext } from "@/components/room-provider";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
+import { copyText } from "@/lib/clipboard";
 import { useRoomStore } from "@/stores/room-store";
 import { useUIStore } from "@/stores/ui-store";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -19,20 +20,30 @@ interface MenuState {
 
 export function RoomSwitcher() {
   const { rooms, activeRoomId, setActiveRoomId, setDialog, removeRoom } = useUIStore();
-  const { joinRoom, leaveRoom, sendSignaling } = useRoomContext();
+  const { joinRoom, leaveRoom, deleteRoom } = useRoomContext();
   const connected = useRoomStore((s) => s.connected);
   const connectedRoomId = useRoomStore((s) => s.roomId);
-  const peerId = useRoomStore((s) => s.peerId);
   const [menu, setMenu] = useState<MenuState | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<{ id: string; name: string } | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
   const handleSwitch = (roomId: string) => {
-    setActiveRoomId(roomId);
-    if (roomId !== connectedRoomId) {
-      const room = rooms.find((r) => r.id === roomId);
-      joinRoom(roomId, room?.password || undefined);
+    if (roomId === connectedRoomId) {
+      setActiveRoomId(roomId);
+      return;
     }
+    const room = rooms.find((r) => r.id === roomId);
+    // Lost our join token for a protected room: ask for the password again.
+    if (room?.hasPassword && !room.joinToken) {
+      setDialog("join", roomId);
+      return;
+    }
+    setActiveRoomId(roomId);
+    joinRoom(roomId);
+  };
+
+  const copyCode = (roomId: string) => {
+    void copyText(roomId);
   };
 
   const handleLeave = useCallback(
@@ -44,12 +55,12 @@ export function RoomSwitcher() {
   );
 
   // Delete is destructive → confirm in a dialog rather than a native alert.
+  // The server confirms with "room-deleted", which removes it from the list.
   const doDelete = useCallback(() => {
     if (!confirmDelete) return;
-    sendSignaling({ type: "delete-room", roomId: confirmDelete.id, peerId });
-    removeRoom(confirmDelete.id);
+    deleteRoom();
     setConfirmDelete(null);
-  }, [confirmDelete, peerId, sendSignaling, removeRoom]);
+  }, [confirmDelete, deleteRoom]);
 
   // Close the actions menu on outside click / Escape / scroll / resize.
   useEffect(() => {
@@ -229,6 +240,17 @@ export function RoomSwitcher() {
               type="button"
               role="menuitem"
               onClick={() => {
+                copyCode(menu.roomId);
+                setMenu(null);
+              }}
+              className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm text-foreground transition-colors hover:bg-muted focus-visible:bg-muted focus-visible:outline-none"
+            >
+              Copy room code
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
                 handleLeave(menu.roomId);
                 setMenu(null);
               }}
@@ -236,17 +258,19 @@ export function RoomSwitcher() {
             >
               Leave room
             </button>
-            <button
-              type="button"
-              role="menuitem"
-              onClick={() => {
-                setConfirmDelete({ id: menu.roomId, name: menu.roomName });
-                setMenu(null);
-              }}
-              className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm text-destructive transition-colors hover:bg-destructive/10 focus-visible:bg-destructive/10 focus-visible:outline-none"
-            >
-              Delete room
-            </button>
+            {rooms.find((r) => r.id === menu.roomId)?.ownerToken && (
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  setConfirmDelete({ id: menu.roomId, name: menu.roomName });
+                  setMenu(null);
+                }}
+                className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm text-destructive transition-colors hover:bg-destructive/10 focus-visible:bg-destructive/10 focus-visible:outline-none"
+              >
+                Delete room
+              </button>
+            )}
           </div>,
           document.body,
         )}

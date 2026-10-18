@@ -1,105 +1,160 @@
 import type { ClientMessage, ServerMessage } from "../../shared/types";
 
-type Listener = (msg: ServerMessage) => void;
+// One WebSocket to one room's signaling object. Owns reconnection (exponential
+// backoff + jitter), the heartbeat, and replaying the join after a reconnect.
+
+const HEARTBEAT_MS = 25_000;
+const PONG_TIMEOUT_MS = 10_000;
+const BACKOFF_MIN_MS = 1_000;
+const BACKOFF_MAX_MS = 30_000;
+
+/** Close codes after which reconnecting would be wrong (see room-do.ts). */
+export const CLOSE = {
+  replaced: 4409,
+  roomDeleted: 4410,
+  outdated: 4426,
+} as const;
+const TERMINAL = new Set<number>(Object.values(CLOSE));
+
+export interface SignalingEvents {
+  onMessage: (msg: ServerMessage) => void;
+  /** Socket dropped. `terminal` = we will not reconnect on our own. */
+  onDisconnect: (code: number, terminal: boolean) => void;
+}
 
 export class SignalingClient {
   private ws: WebSocket | null = null;
-  url: string;
-  private listeners = new Set<Listener>();
+  private url: string | null = null;
+  private join: ClientMessage | null = null;
+  /** Bumped on every new socket so stale callbacks are ignored. */
+  private gen = 0;
+  private attempts = 0;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
-  private _connected = false;
-  private onDisconnect: (() => void) | null = null;
-  // Last join we were asked to make, replayed on every (re)connect so a peer
-  // is re-registered after a socket drop — and so a join issued while the
-  // socket is still CONNECTING isn't lost.
-  private lastJoin: ClientMessage | null = null;
-  private wsGen = 0;
+  private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
+  private pongTimer: ReturnType<typeof setTimeout> | null = null;
 
-  constructor(url: string) {
+  constructor(private events: SignalingEvents) {}
+
+  /** Connect to `url` (closing any current socket) and join with `join`. */
+  open(url: string, join: ClientMessage) {
+    this.close();
     this.url = url;
-  }
-
-  connect() {
-    if (this.ws?.readyState === WebSocket.OPEN || this.ws?.readyState === WebSocket.CONNECTING)
-      return;
-
-    const gen = ++this.wsGen;
-    this.ws = new WebSocket(this.url);
-
-    this.ws.onopen = () => {
-      if (gen !== this.wsGen) return;
-      this._connected = true;
-      // Replay the join so the server re-registers us (also delivers the very
-      // first join if it was attempted before the socket finished opening).
-      if (this.lastJoin) this.ws?.send(JSON.stringify(this.lastJoin));
-    };
-
-    this.ws.onmessage = (e) => {
-      try {
-        const msg = JSON.parse(e.data) as ServerMessage;
-        for (const listener of this.listeners) {
-          listener(msg);
-        }
-      } catch {
-        // ignore invalid messages
-      }
-    };
-
-    this.ws.onclose = () => {
-      if (gen !== this.wsGen) return;
-      this._connected = false;
-      this.onDisconnect?.();
-      this.scheduleReconnect();
-    };
-
-    this.ws.onerror = () => {
-      this.ws?.close();
-    };
-  }
-
-  disconnect() {
-    this.wsGen++;
-    if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
-    this.reconnectTimer = null;
-    this.lastJoin = null;
-    this.ws?.close();
-    this.ws = null;
-    this._connected = false;
-  }
-
-  /** Close the current connection and open a new one to a different URL.
-   *  lastJoin is cleared so a stale room join isn't replayed; the caller
-   *  must send a fresh join message after reconnecting. */
-  reconnect(url: string) {
-    this.disconnect();
-    this.url = url;
+    this.join = join;
+    this.attempts = 0;
     this.connect();
   }
 
-  send(msg: ClientMessage) {
-    // Track join/leave so we know whether to replay a join on reconnect.
-    if (msg.type === "join") this.lastJoin = msg;
-    else if (msg.type === "leave") this.lastJoin = null;
+  /** Replace the join replayed on reconnect (e.g. swap a password for a token). */
+  setJoin(join: ClientMessage) {
+    this.join = join;
+  }
 
+  close() {
+    this.gen++;
+    this.clearTimers();
+    const ws = this.ws;
+    this.ws = null;
+    if (ws && ws.readyState <= WebSocket.OPEN) ws.close(1000);
+  }
+
+  send(msg: ClientMessage): boolean {
+    if (this.ws?.readyState !== WebSocket.OPEN) return false;
+    this.ws.send(JSON.stringify(msg));
+    return true;
+  }
+
+  /** Called when the tab becomes visible / the network comes back: verify the
+   *  socket right away instead of waiting for the next heartbeat or backoff. */
+  wake() {
+    if (!this.url) return;
     if (this.ws?.readyState === WebSocket.OPEN) {
-      this.ws.send(JSON.stringify(msg));
+      this.ping();
+      return;
+    }
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+      this.attempts = 0;
+      this.connect();
     }
   }
 
-  onMessage(listener: Listener) {
-    this.listeners.add(listener);
-    return () => this.listeners.delete(listener);
+  private connect() {
+    if (!this.url) return;
+    const gen = ++this.gen;
+    const ws = new WebSocket(this.url);
+    this.ws = ws;
+
+    ws.onopen = () => {
+      if (gen !== this.gen) return;
+      this.attempts = 0;
+      if (this.join) ws.send(JSON.stringify(this.join));
+      this.heartbeatTimer = setInterval(() => this.ping(), HEARTBEAT_MS);
+    };
+
+    ws.onmessage = (e) => {
+      if (gen !== this.gen || typeof e.data !== "string") return;
+      if (e.data === "pong") {
+        if (this.pongTimer) clearTimeout(this.pongTimer);
+        this.pongTimer = null;
+        return;
+      }
+      let msg: ServerMessage;
+      try {
+        msg = JSON.parse(e.data);
+      } catch {
+        return;
+      }
+      this.events.onMessage(msg);
+    };
+
+    ws.onclose = (e) => {
+      if (gen !== this.gen) return;
+      this.dropped(e.code);
+    };
+
+    // An error is always followed by close; nothing to do here.
+    ws.onerror = () => {};
   }
 
-  setOnDisconnect(cb: () => void) {
-    this.onDisconnect = cb;
+  private ping() {
+    if (this.ws?.readyState !== WebSocket.OPEN || this.pongTimer) return;
+    this.ws.send("ping");
+    // No pong in time: the socket is dead even if the browser hasn't noticed.
+    this.pongTimer = setTimeout(() => {
+      this.pongTimer = null;
+      const ws = this.ws;
+      this.gen++;
+      ws?.close();
+      this.dropped(1006);
+    }, PONG_TIMEOUT_MS);
+  }
+
+  private dropped(code: number) {
+    this.clearTimers();
+    this.ws = null;
+    const terminal = TERMINAL.has(code);
+    this.events.onDisconnect(code, terminal);
+    if (!terminal) this.scheduleReconnect();
   }
 
   private scheduleReconnect() {
     if (this.reconnectTimer) return;
+    const base = Math.min(BACKOFF_MAX_MS, BACKOFF_MIN_MS * 2 ** this.attempts);
+    const delay = base / 2 + Math.random() * (base / 2);
+    this.attempts++;
     this.reconnectTimer = setTimeout(() => {
       this.reconnectTimer = null;
       this.connect();
-    }, 2000);
+    }, delay);
+  }
+
+  private clearTimers() {
+    if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
+    if (this.heartbeatTimer) clearInterval(this.heartbeatTimer);
+    if (this.pongTimer) clearTimeout(this.pongTimer);
+    this.reconnectTimer = null;
+    this.heartbeatTimer = null;
+    this.pongTimer = null;
   }
 }

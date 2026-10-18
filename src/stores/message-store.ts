@@ -12,7 +12,7 @@ import { create } from "zustand";
 interface MessageState {
   items: SharedItem[];
   loaded: boolean;
-  /** sharedItemId -> download progress 0..1 (used by file transfer, Fix 6). */
+  /** sharedItemId -> download progress 0..1 (used by file transfer). */
   progress: Record<string, number>;
   /** sharedItemId -> current transfer purpose, used to avoid overlapping actions. */
   transfers: Record<string, "download" | "preview">;

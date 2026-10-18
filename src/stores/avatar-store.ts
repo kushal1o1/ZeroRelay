@@ -1,4 +1,5 @@
 import { getAllAvatars, saveAvatar as saveAvatarToDexie } from "@/lib/db";
+import { identity } from "@/lib/identity";
 import { create } from "zustand";
 
 interface AvatarState {
@@ -15,6 +16,12 @@ export const useAvatarStore = create<AvatarState>((set) => ({
   },
   loadFromDexie: async () => {
     const map = await getAllAvatars();
+    // v2 derives a new peer id: carry our own avatar over from the old one.
+    const { peerId, legacyPeerId } = identity;
+    if (legacyPeerId && map[legacyPeerId] && !map[peerId]) {
+      map[peerId] = map[legacyPeerId];
+      saveAvatarToDexie(peerId, map[peerId]).catch(() => {});
+    }
     set({ map });
   },
 }));

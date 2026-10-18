@@ -4,60 +4,96 @@ import { useRoomContext } from "@/components/room-provider";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { useRoomStore } from "@/stores/room-store";
+import { generateRoomCode, normalizeRoomCode } from "@/lib/id";
 import { useUIStore } from "@/stores/ui-store";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { LIMITS, ROOM_ID_RE } from "../../shared/types";
 
+/** Create a private room (gets a random code) or join one by its code.
+ *  The room only appears in the switcher once the server accepts the join. */
 export function CreateRoomDialog() {
-  const { dialog, setDialog, addRoom, setActiveRoomId } = useUIStore();
+  const dialog = useUIStore((s) => s.dialog);
+  const dialogRoomId = useUIStore((s) => s.dialogRoomId);
+  const setDialog = useUIStore((s) => s.setDialog);
   const { joinRoom } = useRoomContext();
-  const peerId = useRoomStore((s) => s.peerId);
   const [name, setName] = useState("");
+  const [code, setCode] = useState("");
   const [password, setPassword] = useState("");
+  const [codeError, setCodeError] = useState<string | null>(null);
 
   const isOpen = dialog === "create" || dialog === "join";
   const isCreate = dialog === "create";
 
+  useEffect(() => {
+    if (!isOpen) return;
+    setName("");
+    setCode(dialogRoomId ?? "");
+    setPassword("");
+    setCodeError(null);
+  }, [isOpen, dialogRoomId]);
+
+  const close = () => setDialog(null);
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const id = name.toLowerCase().replace(/\s+/g, "-");
-    addRoom({
-      id,
-      name: id,
-      hasPassword: !!password,
-      password: password || undefined,
-      createdBy: isCreate ? peerId : undefined,
-    });
-    setActiveRoomId(id);
-    joinRoom(id, password || undefined);
-    setDialog(null);
+    if (isCreate) {
+      joinRoom(generateRoomCode(), {
+        create: { name: name.trim(), password: password || undefined },
+      });
+    } else {
+      const roomId = normalizeRoomCode(code);
+      if (!ROOM_ID_RE.test(roomId)) {
+        setCodeError("That doesn't look like a room code");
+        return;
+      }
+      joinRoom(roomId, { password: password || undefined });
+    }
+    close();
   };
 
   return (
-    <Dialog
-      open={isOpen}
-      onClose={() => setDialog(null)}
-      title={isCreate ? "Create Room" : "Join Room"}
-    >
+    <Dialog open={isOpen} onClose={close} title={isCreate ? "Create Room" : "Join Room"}>
       <form onSubmit={handleSubmit} className="space-y-4">
-        <Input
-          id="room-name"
-          label="Room name"
-          placeholder="e.g. my-room"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          required
-        />
+        {isCreate ? (
+          <Input
+            id="room-name"
+            label="Room name"
+            placeholder="e.g. design team"
+            value={name}
+            maxLength={LIMITS.roomName}
+            onChange={(e) => setName(e.target.value)}
+            required
+          />
+        ) : (
+          <div className="space-y-1">
+            <Input
+              id="room-code"
+              label="Room code"
+              placeholder="ask the room creator for it"
+              value={code}
+              onChange={(e) => {
+                setCode(e.target.value);
+                setCodeError(null);
+              }}
+              autoComplete="off"
+              spellCheck={false}
+              className="font-mono"
+              required
+            />
+            {codeError && <p className="text-xs text-destructive">{codeError}</p>}
+          </div>
+        )}
         <Input
           id="room-password"
-          label="Password (optional)"
+          label={isCreate ? "Password (optional)" : "Password (if the room has one)"}
           type="password"
-          placeholder="leave blank for open room"
+          placeholder={isCreate ? "leave blank for an open room" : ""}
           value={password}
+          maxLength={LIMITS.password}
           onChange={(e) => setPassword(e.target.value)}
         />
         <div className="flex justify-end gap-2">
-          <Button type="button" variant="ghost" onClick={() => setDialog(null)}>
+          <Button type="button" variant="ghost" onClick={close}>
             Cancel
           </Button>
           <Button type="submit">{isCreate ? "Create" : "Join"}</Button>

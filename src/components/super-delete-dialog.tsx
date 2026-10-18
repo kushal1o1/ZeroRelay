@@ -3,6 +3,7 @@
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { clearIdentity } from "@/lib/identity";
 import { useMessageStore } from "@/stores/message-store";
 import { useUIStore } from "@/stores/ui-store";
 import { useState } from "react";
@@ -14,7 +15,7 @@ interface SuperDeleteDialogProps {
   onClose: () => void;
 }
 
-/** Wipes every trace of local data — IndexedDB, localStorage, stores — and
+/** Wipes every trace of local data (IndexedDB, localStorage, stores) and
  *  restarts the app fresh, GitHub-style ("type the phrase to confirm"). */
 export function SuperDeleteDialog({ open, onClose }: SuperDeleteDialogProps) {
   const [phrase, setPhrase] = useState("");
@@ -27,7 +28,7 @@ export function SuperDeleteDialog({ open, onClose }: SuperDeleteDialogProps) {
     try {
       await useMessageStore.getState().clearAll();
       localStorage.removeItem("zerorelay-name");
-      localStorage.removeItem("zerorelay-peerId");
+      clearIdentity();
       localStorage.removeItem("theme");
       useUIStore.persist.clearStorage();
       window.location.reload();
