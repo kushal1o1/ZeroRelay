@@ -1,6 +1,8 @@
 "use client";
 
 import { CreateRoomDialog } from "@/components/create-room-dialog";
+import { InviteToasts } from "@/components/lobby/invite-toasts";
+import { LobbyButton, LobbyDialog } from "@/components/lobby/lobby-dialog";
 import { ProfileDialog } from "@/components/profile-dialog";
 import { RoomProvider, useRoomContext } from "@/components/room-provider";
 import { RoomSwitcher } from "@/components/room-switcher";
@@ -14,6 +16,7 @@ import { useRoomStore } from "@/stores/room-store";
 import { useUIStore } from "@/stores/ui-store";
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { NEARBY_ROOM_ID } from "../../shared/types";
 
 function ChatHome() {
   const peerId = useRoomStore((s) => s.peerId);
@@ -79,6 +82,8 @@ function ChatHome() {
           )}
         </div>
 
+        {roomId === NEARBY_ROOM_ID && connected && <LobbyButton />}
+
         <ThemeToggle />
 
         <button
@@ -129,6 +134,8 @@ function ChatHome() {
       />
       <SuperDeleteDialog open={superDeleteOpen} onClose={() => setSuperDeleteOpen(false)} />
       <Viewer />
+      <LobbyDialog />
+      <InviteToasts />
     </div>
   );
 }
