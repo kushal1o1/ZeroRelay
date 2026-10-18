@@ -2,9 +2,16 @@ name = "zerorelay-signaling"
 main = "src/index.ts"
 compatibility_date = "2025-12-01"
 
+# Secrets (set with `wrangler secret put <NAME>`):
+#   IP_SALT  salt for hashing client IPs into network keys (dev falls back to a constant)
+
 [[durable_objects.bindings]]
 name = "ROOM_DO"
 class_name = "RoomDO"
+
+[[durable_objects.bindings]]
+name = "WORLD_DO"
+class_name = "WorldDO"
 
 [observability]
 logs = { enabled = true }
@@ -12,3 +19,7 @@ logs = { enabled = true }
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = ["RoomDO"]
+
+[[migrations]]
+tag = "v2"
+new_sqlite_classes = ["WorldDO"]
