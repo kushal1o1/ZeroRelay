@@ -9,6 +9,9 @@ export const RETENTION_LABELS: Record<Retention, string> = {
   forever: "Forever",
 };
 
+/** Longest text that can be sent as a message; bigger text goes as a file. */
+export const MAX_TEXT_CHARS = 256 * 1024;
+
 export type ItemType = "text" | "code" | "note" | "markdown" | "file";
 
 export const ITEM_TYPE_LABELS: Record<ItemType, string> = {

@@ -3,6 +3,7 @@ import { useMesh } from "@/hooks/use-mesh";
 import { useSignaling } from "@/hooks/use-signaling";
 import { generateId } from "@/lib/id";
 import { AVATAR_MAX_CHARS, parsePeerMessage } from "@/lib/peer-protocol";
+import { requestPersistence } from "@/lib/storage";
 import { TransferManager } from "@/lib/transfer/manager";
 import { saveFile } from "@/lib/transfer/save";
 import { clearIncoming } from "@/lib/transfer/sinks";
@@ -155,6 +156,7 @@ export function useRoom() {
       type: ItemType = "text",
       retention: Retention = "session",
     ) => {
+      if (retention !== "session") void requestPersistence();
       dispatchShare(newItem({ type, retention, content }), targetPeerId);
     },
     [dispatchShare],
@@ -169,6 +171,7 @@ export function useRoom() {
         fileSize: file.size,
         mime: file.type,
       });
+      if (retention !== "session") void requestPersistence();
       transfers.offer(
         item.id,
         file,

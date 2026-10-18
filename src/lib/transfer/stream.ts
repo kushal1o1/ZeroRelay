@@ -7,12 +7,16 @@ import type { FileSink } from "./sinks";
 // what it has *written*, and the sender never runs more than WINDOW bytes
 // ahead of that, so a slow disk can't make data pile up in memory.
 
-/** Safe for every browser's SCTP message limit (Safari's is 64 KiB). */
-const DEFAULT_CHUNK = 64 * 1024;
-const WINDOW = 8 * 1024 * 1024;
-const ACK_EVERY = 1024 * 1024;
-const BUFFER_HIGH = 4 * 1024 * 1024;
-const BUFFER_LOW = 1024 * 1024;
+/** Used when the link doesn't report a limit: safe everywhere (Safari's is 64 KiB). */
+const SAFE_CHUNK = 64 * 1024;
+/** Upper bound when the link allows more: fewer, larger messages and disk writes. */
+const MAX_CHUNK = 256 * 1024;
+/** Most bytes the sender may run ahead of what the receiver has written. */
+const WINDOW = 16 * 1024 * 1024;
+const ACK_EVERY = 2 * 1024 * 1024;
+/** Stay well under the ~16 MB point where browsers fail `send()`. */
+const BUFFER_HIGH = 8 * 1024 * 1024;
+const BUFFER_LOW = 2 * 1024 * 1024;
 /** No data (receiver) or no ack (sender) for this long = stalled. */
 const IDLE_MS = 30_000;
 
@@ -53,7 +57,8 @@ export function sendFile(
 ): Running {
   ch.binaryType = "arraybuffer";
   ch.bufferedAmountLowThreshold = BUFFER_LOW;
-  const chunk = Math.min(DEFAULT_CHUNK, opts.maxMessageSize || DEFAULT_CHUNK);
+  // The link's max message size reflects what the receiving browser accepts.
+  const chunk = opts.maxMessageSize ? Math.min(MAX_CHUNK, opts.maxMessageSize) : SAFE_CHUNK;
 
   let acked = 0;
   let failure: TransferError | null = null;

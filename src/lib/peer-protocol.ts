@@ -1,11 +1,10 @@
 import type { PeerMessage, SharedItem, TransferFrame } from "@/types/message";
-import { ITEM_TYPE_LABELS, RETENTION_LABELS } from "@/types/message";
+import { ITEM_TYPE_LABELS, MAX_TEXT_CHARS, RETENTION_LABELS } from "@/types/message";
 
 // Runtime validation for everything that arrives from another peer. A peer is
 // just another browser: anything it sends is untrusted until checked here.
 
 const ID_MAX = 64;
-const TEXT_MAX = 1024 * 1024;
 const NAME_MAX = 255;
 export const AVATAR_MAX_CHARS = 64 * 1024;
 
@@ -30,7 +29,7 @@ function parseItem(v: unknown): SharedItem | null {
     typeof v.retention === "string" &&
     v.retention in RETENTION_LABELS &&
     typeof v.timestamp === "number" &&
-    optStr(v.content, TEXT_MAX) &&
+    optStr(v.content, MAX_TEXT_CHARS) &&
     optStr(v.fileName, NAME_MAX) &&
     optStr(v.mime, NAME_MAX) &&
     (v.fileSize === undefined || isSize(v.fileSize));

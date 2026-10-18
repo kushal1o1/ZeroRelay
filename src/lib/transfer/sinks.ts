@@ -114,3 +114,20 @@ export async function clearIncoming(): Promise<void> {
   const root = await navigator.storage.getDirectory().catch(() => null);
   await root?.removeEntry(INCOMING_DIR, { recursive: true }).catch(() => {});
 }
+
+/** Bytes currently held by received files (including in-progress ones). */
+export async function incomingSize(): Promise<number> {
+  if (!supportsOpfsWrites()) return 0;
+  try {
+    const dir = await incomingDir();
+    let total = 0;
+    // Async iteration of directory handles isn't in this TS DOM lib yet.
+    const entries = (dir as unknown as { values(): AsyncIterable<FileSystemHandle> }).values();
+    for await (const handle of entries) {
+      if (handle.kind === "file") total += (await (handle as FileSystemFileHandle).getFile()).size;
+    }
+    return total;
+  } catch {
+    return 0;
+  }
+}

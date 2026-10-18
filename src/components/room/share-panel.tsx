@@ -1,7 +1,7 @@
 "use client";
 
 import { formatSize } from "@/lib/format";
-import { type ItemType, RETENTION_LABELS, type Retention } from "@/types/message";
+import { type ItemType, MAX_TEXT_CHARS, RETENTION_LABELS, type Retention } from "@/types/message";
 import { useEffect, useRef, useState } from "react";
 
 interface ComposerProps {
@@ -75,9 +75,17 @@ export function Composer({
     };
   }, [pickerOpen]);
 
+  const tooLong = text.length > MAX_TEXT_CHARS;
   const sendText = () => {
-    if (!text.trim()) return;
+    if (!text.trim() || tooLong) return;
     onSend(text, type, retention);
+    setText("");
+  };
+  /** Text over the message limit is shared as a file instead. */
+  const sendTextAsFile = () => {
+    const name =
+      type === "markdown" ? "message.md" : type === "code" ? "snippet.txt" : "message.txt";
+    onSendFile([new File([text], name, { type: "text/plain" })], retention);
     setText("");
   };
   const confirmFile = () => {
@@ -265,10 +273,25 @@ export function Composer({
           <button
             type="button"
             onClick={sendText}
-            disabled={!text.trim()}
+            disabled={!text.trim() || tooLong}
             className="size-8 shrink-0 self-end rounded-lg bg-accent text-sm text-accent-foreground disabled:opacity-40"
           >
             ➤
+          </button>
+        </div>
+      )}
+
+      {tooLong && type !== "file" && (
+        <div className="mt-2 flex items-center justify-between gap-2 rounded-lg bg-muted px-3 py-2 text-[11px] text-foreground">
+          <span>
+            Too long for a message ({formatSize(text.length)}, max {formatSize(MAX_TEXT_CHARS)}).
+          </span>
+          <button
+            type="button"
+            onClick={sendTextAsFile}
+            className="shrink-0 rounded-md bg-accent px-2 py-1 font-semibold text-accent-foreground"
+          >
+            Send as file
           </button>
         </div>
       )}
