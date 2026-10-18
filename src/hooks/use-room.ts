@@ -1,9 +1,10 @@
 "use client";
+import { useMesh } from "@/hooks/use-mesh";
 import { useSignaling } from "@/hooks/use-signaling";
-import { useWebRTC } from "@/hooks/use-webrtc";
 import { type Incoming, applyChunk, finalizeDownload, sendFileInChunks } from "@/lib/file-transfer";
 import { generateId } from "@/lib/id";
 import { useAvatarStore } from "@/stores/avatar-store";
+import { isLinked, useLobbyStore } from "@/stores/lobby-store";
 import { useMarkdownPreviewStore } from "@/stores/markdown-preview-store";
 import { useMessageStore } from "@/stores/message-store";
 import { useRoomStore } from "@/stores/room-store";
@@ -17,7 +18,7 @@ import type {
   SharedItem,
 } from "@/types/message";
 import { useCallback, useEffect, useRef } from "react";
-import type { ServerMessage, SignalPayload } from "../../shared/types";
+import type { LobbyPeer, ServerMessage, SignalPayload } from "../../shared/types";
 
 export function useRoom() {
   const peerId = useRoomStore((s) => s.peerId);
@@ -29,11 +30,8 @@ export function useRoom() {
   const previewRequestsRef = useRef<Set<string>>(new Set());
   const discardedPreviewIdsRef = useRef<Set<string>>(new Set());
   const previewTimeoutsRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
-  // WebRTC send fns, filled after useWebRTC; breaks the onData<->send cycle.
-  const rtcRef = useRef<{
-    sendToPeer: (peerId: string, data: string) => boolean;
-    bufferedAmount: (peerId: string) => number;
-  }>({ sendToPeer: () => false, bufferedAmount: () => 0 });
+  // Set once useMesh has run below; onData needs it to reply to peers.
+  const meshRef = useRef<ReturnType<typeof useMesh> | null>(null);
 
   // Parse incoming data-channel payloads: share items + file-transfer control.
   const onData = useCallback((fromPeerId: string, data: string) => {
@@ -52,12 +50,14 @@ export function useRoom() {
       case "file-request": {
         const file = outgoingFilesRef.current.get(msg.sharedItemId);
         if (file) {
+          const mesh = meshRef.current?.mesh;
+          if (!mesh) break;
           sendFileInChunks(
             file,
             msg.sharedItemId,
             fromPeerId,
-            rtcRef.current.sendToPeer,
-            rtcRef.current.bufferedAmount,
+            (id, data) => mesh.send(id, data),
+            (id) => mesh.bufferedAmount(id),
           ).catch((err) => console.warn("File send failed", err));
         } else {
           const response = {
@@ -65,7 +65,7 @@ export function useRoom() {
             sharedItemId: msg.sharedItemId,
             message: "The sender no longer has this file available.",
           };
-          rtcRef.current.sendToPeer(fromPeerId, JSON.stringify(response));
+          meshRef.current?.mesh.send(fromPeerId, JSON.stringify(response));
         }
         break;
       }
@@ -135,103 +135,78 @@ export function useRoom() {
     }
   }, []);
 
-  // Set right after useWebRTC is called (it needs sendSignal from useSignaling).
-  const handleSignalRef = useRef<(from: string, payload: SignalPayload) => void>(() => {});
-
   const msgHandler = useCallback((msg: ServerMessage) => {
-    // Signals relayed from other networks are not accepted without the user's consent.
-    if (msg.type === "signal" && msg.via === "room") {
-      handleSignalRef.current(msg.from, msg.payload);
+    const links = meshRef.current;
+    if (!links) return;
+    if (msg.type === "signal") {
+      if (msg.via === "room") links.mesh.handleSignal(msg.from, msg.payload);
+      else links.world.onSignal(msg.from, msg.fromPeer, msg.payload);
+    } else if (msg.type === "error" && msg.code === "unreachable" && msg.peerId) {
+      links.world.onUnreachable(msg.peerId);
     }
   }, []);
 
   const { joinRoom, leaveRoom, deleteRoom, rename, setVisibility, sendSignal } =
     useSignaling(msgHandler);
 
-  // Defined before useWebRTC to break the circular dep: reads sendToPeer
-  // from rtcRef, which is wired up right after useWebRTC returns.
-  const onChannelOpen = useCallback(
+  // Greet each newly opened link with our avatar.
+  const onOpen = useCallback(
     (targetPeerId: string) => {
       const myAvatar = useAvatarStore.getState().map[peerId];
-      if (myAvatar) {
-        const msg: AvatarMessage = { type: "avatar", dataUrl: myAvatar };
-        rtcRef.current.sendToPeer(targetPeerId, JSON.stringify(msg));
-      }
+      if (!myAvatar) return;
+      const msg: AvatarMessage = { type: "avatar", dataUrl: myAvatar };
+      meshRef.current?.mesh.send(targetPeerId, JSON.stringify(msg));
     },
     [peerId],
   );
 
-  const {
-    connectToPeer,
-    disconnectFromPeer,
-    disconnectAll,
-    handleSignal,
-    sendToPeer,
-    broadcast,
-    bufferedAmount,
-  } = useWebRTC(peerId, sendSignal, onData, onChannelOpen);
+  const links = useMesh(peerId, {
+    sendSignal: (to: string, payload: SignalPayload) => sendSignal(to, payload),
+    onData,
+    onOpen,
+  });
+  meshRef.current = links;
+  const { mesh, world } = links;
 
-  // Set refs so msgHandler / onData always use the latest functions.
-  handleSignalRef.current = handleSignal;
-  rtcRef.current = { sendToPeer, bufferedAmount };
-
-  // When room state changes, connect/disconnect WebRTC peers.
-  useEffect(() => {
-    const unsub = useRoomStore.subscribe((state, prev) => {
-      if (!state.connected && prev.connected) {
-        disconnectAll();
-      }
-      if (state.connected && !prev.connected) {
-        for (const peer of state.peers) {
-          if (peer.id !== state.peerId) {
-            connectToPeer(peer.id);
-          }
-        }
-      }
-      if (state.connected && state.peers.length > prev.peers.length) {
-        const newPeers = state.peers.filter(
-          (p) => !prev.peers.find((op) => op.id === p.id) && p.id !== state.peerId,
-        );
-        for (const peer of newPeers) {
-          connectToPeer(peer.id);
-        }
-      }
-      if (state.peers.length < prev.peers.length) {
-        const removed = prev.peers.filter((p) => !state.peers.find((np) => np.id === p.id));
-        for (const peer of removed) {
-          disconnectFromPeer(peer.id);
-        }
-      }
-    });
-    return unsub;
-  }, [connectToPeer, disconnectFromPeer, disconnectAll]);
+  /** Deliver a payload to each peer, linking on demand. Returns who missed it.
+   *  Only room members and accepted lobby links are ever dialed. */
+  const deliver = useCallback(
+    async (peerIds: string[], payload: string): Promise<string[]> => {
+      const results = await Promise.all(
+        peerIds.map(async (id) => {
+          if (!isReachable(id)) return id;
+          return (await mesh.ensure(id)) && mesh.send(id, payload) ? null : id;
+        }),
+      );
+      return results.filter((id): id is string => id !== null);
+    },
+    [mesh],
+  );
 
   // Send a share to a specific peer or everyone, and echo it into the local
   // feed so the sender sees it immediately (even if no peer is connected yet).
   const dispatchShare = useCallback(
-    (item: SharedItem, target?: string | string[]): boolean => {
+    (item: SharedItem, target?: string | string[]) => {
       const msg: DataMessage = {
         type: "share",
         item,
         targetPeerId: Array.isArray(target) ? undefined : target,
       };
-      const payload = JSON.stringify(msg);
-      let delivered = false;
-      if (Array.isArray(target)) {
-        // Direct-send to a specific set of peers (echoed into our own feed once).
-        for (const id of target) {
-          if (sendToPeer(id, payload)) delivered = true;
-        }
-      } else if (target) {
-        delivered = sendToPeer(target, payload);
-      } else {
-        delivered = broadcast(payload).length > 0;
-      }
+      const state = useRoomStore.getState();
+      // "Everyone" means everyone in the room; lobby links only get direct sends.
+      const recipients = target
+        ? Array.isArray(target)
+          ? target
+          : [target]
+        : state.peers.map((p) => p.id).filter((id) => id !== state.peerId);
       useMessageStore.getState().addItem(item);
-      if (!delivered) console.warn("Share not delivered (no open data channel yet)");
-      return delivered;
+      void deliver(recipients, JSON.stringify(msg)).then((missed) => {
+        if (missed.length === 0) return;
+        const names = missed.map((id) => peerName(id)).join(", ");
+        useRoomStore.getState().setError(`Couldn't reach ${names} directly.`);
+      });
     },
-    [sendToPeer, broadcast],
+    [deliver],
   );
 
   const shareText = useCallback(
@@ -288,7 +263,7 @@ export function useRoom() {
   // Receiver: ask the owner peer to stream a file's bytes; onData handles the
   // incoming chunks and triggers the browser download on completion.
   const requestFile = useCallback(
-    (item: SharedItem, purpose: "download" | "preview" = "download") => {
+    async (item: SharedItem, purpose: "download" | "preview" = "download") => {
       if (item.type !== "file") return;
       const store = useMessageStore.getState();
       if (store.transfers[item.id]) {
@@ -321,14 +296,15 @@ export function useRoom() {
       }
       store.setTransferMode(item.id, purpose);
       const req: FileRequest = { type: "file-request", sharedItemId: item.id, purpose };
-      if (!sendToPeer(item.peerId, JSON.stringify(req))) {
-        console.warn("Cannot request file: no open channel to owner");
+      const missed = await deliver([item.peerId], JSON.stringify(req));
+      if (missed.length > 0) {
         store.setTransferMode(item.id, null);
         if (purpose === "preview") {
           previewRequestsRef.current.delete(item.id);
           useMarkdownPreviewStore.getState().setError(item.id);
         } else {
           store.clearProgress(item.id);
+          useRoomStore.getState().setError(`Couldn't reach ${item.peerName} to get the file.`);
         }
         return;
       }
@@ -344,24 +320,29 @@ export function useRoom() {
         previewTimeoutsRef.current.set(item.id, timeout);
       }
     },
-    [sendToPeer, peerId],
+    [deliver, peerId],
   );
 
   const updateAvatar = useCallback(
     (dataUrl: string) => {
       useAvatarStore.getState().setAvatar(peerId, dataUrl);
-      const msg: AvatarMessage = { type: "avatar", dataUrl };
-      broadcast(JSON.stringify(msg));
+      const msg = JSON.stringify({ type: "avatar", dataUrl } satisfies AvatarMessage);
+      for (const id of mesh.openPeers()) mesh.send(id, msg);
     },
-    [peerId, broadcast],
+    [peerId, mesh],
   );
 
   const leaveRoomWithCleanup = useCallback(() => {
     const roomId = useRoomStore.getState().roomId;
-    disconnectAll();
     leaveRoom();
     if (roomId) useMessageStore.getState().removeRoomItems(roomId);
-  }, [disconnectAll, leaveRoom]);
+  }, [leaveRoom]);
+
+  const invite = useCallback((peer: LobbyPeer) => world.invite(peer), [world]);
+  const acceptInvite = useCallback((id: string) => world.accept(id), [world]);
+  const declineInvite = useCallback((id: string) => world.decline(id), [world]);
+  const unlink = useCallback((id: string) => world.unlink(id), [world]);
+  const retryPeer = useCallback((id: string) => mesh.retry(id), [mesh]);
 
   return {
     joinRoom,
@@ -369,11 +350,27 @@ export function useRoom() {
     deleteRoom,
     rename,
     setVisibility,
-    disconnectAll,
     shareText,
     shareFile,
     shareFiles,
     requestFile,
     updateAvatar,
+    invite,
+    acceptInvite,
+    declineInvite,
+    unlink,
+    retryPeer,
   };
+}
+
+function isReachable(id: string): boolean {
+  return useRoomStore.getState().peers.some((p) => p.id === id) || isLinked(id);
+}
+
+function peerName(id: string): string {
+  return (
+    useRoomStore.getState().peers.find((p) => p.id === id)?.name ??
+    useLobbyStore.getState().links[id]?.name ??
+    "a peer"
+  );
 }

@@ -4,8 +4,8 @@ import { hashString } from "@/lib/hash";
 import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { Peer } from "../../shared/types";
 
-export interface RadarPoint {
-  peer: Peer;
+export interface RadarPoint<P extends Peer = Peer> {
+  peer: P;
   x: number;
   y: number;
   angle: number;
@@ -30,7 +30,7 @@ const MIN_RADIUS = 118;
  * per-peer jitter (from the peer id) so nodes feel constellation-like and stay
  * stable across renders. Consumed by nodes, connector lines, ripple + packets.
  */
-export function useRadarLayout(peers: Peer[], rotation = 0) {
+export function useRadarLayout<P extends Peer>(peers: P[], rotation = 0) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({ width: 0, height: 0 });
 
@@ -50,7 +50,7 @@ export function useRadarLayout(peers: Peer[], rotation = 0) {
     [size.width, size.height],
   );
 
-  const points = useMemo<RadarPoint[]>(() => {
+  const points = useMemo<RadarPoint<P>[]>(() => {
     if (size.width === 0 || size.height === 0) return [];
     const minDim = Math.min(size.width, size.height, MAX_DIM);
     const baseRadius = minDim * BASE_RADIUS_F;

@@ -1,6 +1,8 @@
 "use client";
 
+import { useRoomContext } from "@/components/room-provider";
 import { useRadarLayout } from "@/hooks/use-radar-layout";
+import { useVisiblePeers } from "@/hooks/use-visible-peers";
 import { useRoomStore } from "@/stores/room-store";
 import {
   type CSSProperties,
@@ -56,11 +58,9 @@ export const RadarCanvas = forwardRef<RadarHandle, RadarCanvasProps>(function Ra
   { selectedPeerIds, onTogglePeer, onRename, onSendFile },
   ref,
 ) {
-  const peers = useRoomStore((s) => s.peers);
-  const myPeerId = useRoomStore((s) => s.peerId);
   const myName = useRoomStore((s) => s.name);
-
-  const others = peers.filter((p) => p.id !== myPeerId);
+  const others = useVisiblePeers();
+  const { retryPeer } = useRoomContext();
 
   // Gently orbit the whole system so it feels alive. Advancing every peer's
   // angle (vs. CSS-rotating a wrapper) keeps labels upright and connector lines
@@ -218,6 +218,7 @@ export const RadarCanvas = forwardRef<RadarHandle, RadarCanvasProps>(function Ra
               y={p.y}
               selected={selectedPeerIds.includes(p.peer.id)}
               onSelect={() => onTogglePeer(p.peer.id)}
+              onRetry={() => retryPeer(p.peer.id)}
               onDropFile={(f) => {
                 onSendFile(f, p.peer.id);
                 playSend(p.peer.id);
