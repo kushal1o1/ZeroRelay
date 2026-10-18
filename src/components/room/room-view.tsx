@@ -49,7 +49,7 @@ export function RoomView({ onEditProfile }: { onEditProfile: () => void }) {
 
   // Play the incoming radar animation (packet → sun + ping) when a message
   // arrives from someone else. We track seen ids so existing history on first
-  // load — and our own sent messages — don't retrigger it.
+  // load (and our own sent messages) don't retrigger it.
   const items = useMessageStore((s) => s.items);
   const seenIdsRef = useRef<Set<string> | null>(null);
   useEffect(() => {

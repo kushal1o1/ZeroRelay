@@ -85,7 +85,7 @@ export function PresenceList({ selectedPeerId, onSelectPeer }: PresenceListProps
           <Avatar name={myName} peerId={myPeerId} size="md" />
           <div className="min-w-0 flex-1">
             <p className="text-sm font-medium text-foreground truncate">{myName}</p>
-            <p className="text-xs text-muted-foreground">You — tap to edit profile</p>
+            <p className="text-xs text-muted-foreground">You · tap to edit profile</p>
           </div>
         </button>
       )}

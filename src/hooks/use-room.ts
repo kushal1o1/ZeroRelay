@@ -2,7 +2,6 @@
 import { useSignaling } from "@/hooks/use-signaling";
 import { useWebRTC } from "@/hooks/use-webrtc";
 import { type Incoming, applyChunk, finalizeDownload, sendFileInChunks } from "@/lib/file-transfer";
-import { ensureLocalIPs } from "@/lib/ice";
 import { generateId } from "@/lib/id";
 import { useAvatarStore } from "@/stores/avatar-store";
 import { useMarkdownPreviewStore } from "@/stores/markdown-preview-store";
@@ -18,7 +17,7 @@ import type {
   SharedItem,
 } from "@/types/message";
 import { useCallback, useEffect, useRef } from "react";
-import type { SDP, ServerMessage } from "../../shared/types";
+import type { ServerMessage, SignalPayload } from "../../shared/types";
 
 export function useRoom() {
   const peerId = useRoomStore((s) => s.peerId);
@@ -30,7 +29,7 @@ export function useRoom() {
   const previewRequestsRef = useRef<Set<string>>(new Set());
   const discardedPreviewIdsRef = useRef<Set<string>>(new Set());
   const previewTimeoutsRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
-  // WebRTC send fns, filled after useWebRTC — breaks the onData<->send cycle.
+  // WebRTC send fns, filled after useWebRTC; breaks the onData<->send cycle.
   const rtcRef = useRef<{
     sendToPeer: (peerId: string, data: string) => boolean;
     bufferedAmount: (peerId: string) => number;
@@ -46,16 +45,6 @@ export function useRoom() {
       return;
     }
     const store = useMessageStore.getState();
-    const roomState = useRoomStore.getState();
-
-    // In global room, silently drop shares from remote peers.
-    if (
-      roomState.roomId === "global" &&
-      (msg?.type === "share" || msg?.type === "avatar") &&
-      roomState.peers.find((p) => p.id === fromPeerId)?.locale === "remote"
-    ) {
-      return;
-    }
     switch (msg?.type) {
       case "share":
         store.addItem(msg.item);
@@ -146,42 +135,20 @@ export function useRoom() {
     }
   }, []);
 
-  // Webrtc refs — set after useWebRTC is called.
-  const webrtcRef = useRef<{
-    handleOffer: (from: string, sdp: SDP) => Promise<void>;
-    handleAnswer: (from: string, sdp: SDP) => Promise<void>;
-    handleIceCandidate: (
-      from: string,
-      candidate: {
-        candidate: string;
-        sdpMid: string | null;
-        sdpMLineIndex: number | null;
-        address?: string | null;
-      },
-    ) => void;
-  }>({
-    handleOffer: async () => {},
-    handleAnswer: async () => {},
-    handleIceCandidate: () => {},
-  });
+  // Set right after useWebRTC is called (it needs sendSignal from useSignaling).
+  const handleSignalRef = useRef<(from: string, payload: SignalPayload) => void>(() => {});
 
   const msgHandler = useCallback((msg: ServerMessage) => {
-    switch (msg.type) {
-      case "offer":
-        webrtcRef.current.handleOffer(msg.from, msg.sdp);
-        break;
-      case "answer":
-        webrtcRef.current.handleAnswer(msg.from, msg.sdp);
-        break;
-      case "ice-candidate":
-        webrtcRef.current.handleIceCandidate(msg.from, msg.candidate);
-        break;
+    // Signals relayed from other networks are not accepted without the user's consent.
+    if (msg.type === "signal" && msg.via === "room") {
+      handleSignalRef.current(msg.from, msg.payload);
     }
   }, []);
 
-  const { joinRoom, leaveRoom, rename, sendSignaling } = useSignaling(msgHandler);
+  const { joinRoom, leaveRoom, deleteRoom, rename, setVisibility, sendSignal } =
+    useSignaling(msgHandler);
 
-  // Defined before useWebRTC to break the circular dep — reads sendToPeer
+  // Defined before useWebRTC to break the circular dep: reads sendToPeer
   // from rtcRef, which is wired up right after useWebRTC returns.
   const onChannelOpen = useCallback(
     (targetPeerId: string) => {
@@ -194,33 +161,18 @@ export function useRoom() {
     [peerId],
   );
 
-  // When we learn a peer's locale from ICE candidates, tag them in the store.
-  const onPeerLocale = useCallback((targetId: string, locale: "local" | "remote") => {
-    useRoomStore.getState().setPeerLocale(targetId, locale);
-  }, []);
-
   const {
     connectToPeer,
     disconnectFromPeer,
     disconnectAll,
-    handleOffer,
-    handleAnswer,
-    handleIceCandidate,
+    handleSignal,
     sendToPeer,
     broadcast,
     bufferedAmount,
-    retryPendingLocale,
-  } = useWebRTC(peerId, sendSignaling, onData, onChannelOpen, onPeerLocale);
-
-  // Kick off LAN IP detection early; retry any pending locale classifications.
-  useEffect(() => {
-    ensureLocalIPs()
-      .then(() => retryPendingLocale())
-      .catch(() => {});
-  }, [retryPendingLocale]);
+  } = useWebRTC(peerId, sendSignal, onData, onChannelOpen);
 
   // Set refs so msgHandler / onData always use the latest functions.
-  webrtcRef.current = { handleOffer, handleAnswer, handleIceCandidate };
+  handleSignalRef.current = handleSignal;
   rtcRef.current = { sendToPeer, bufferedAmount };
 
   // When room state changes, connect/disconnect WebRTC peers.
@@ -264,7 +216,6 @@ export function useRoom() {
         targetPeerId: Array.isArray(target) ? undefined : target,
       };
       const payload = JSON.stringify(msg);
-      const state = useRoomStore.getState();
       let delivered = false;
       if (Array.isArray(target)) {
         // Direct-send to a specific set of peers (echoed into our own feed once).
@@ -273,13 +224,6 @@ export function useRoom() {
         }
       } else if (target) {
         delivered = sendToPeer(target, payload);
-      } else if (state.roomId === "global") {
-        // Global room: only share with local-LAN peers.
-        for (const peer of state.peers) {
-          if (peer.id === state.peerId) continue;
-          if (peer.locale === "remote") continue;
-          if (sendToPeer(peer.id, payload)) delivered = true;
-        }
       } else {
         delivered = broadcast(payload).length > 0;
       }
@@ -422,8 +366,9 @@ export function useRoom() {
   return {
     joinRoom,
     leaveRoom: leaveRoomWithCleanup,
+    deleteRoom,
     rename,
-    sendSignaling,
+    setVisibility,
     disconnectAll,
     shareText,
     shareFile,

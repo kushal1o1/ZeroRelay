@@ -24,7 +24,7 @@ export function RadarRings({ width, height, center, points, selectedPeerIds }: R
 
   return (
     <>
-      {/* rotating sweep — outer wrapper positions, inner rotates about its center */}
+      {/* rotating sweep: outer wrapper positions, inner rotates about its center */}
       <div
         aria-hidden
         className="pointer-events-none absolute"
@@ -43,7 +43,7 @@ export function RadarRings({ width, height, center, points, selectedPeerIds }: R
         />
       </div>
 
-      {/* continuous radar ping — expanding rings from the centre (like the homepage).
+      {/* continuous radar ping: expanding rings from the centre (like the homepage).
           Base opacity 0 keeps them invisible if animation is disabled (reduced motion). */}
       {[0, 1.7].map((delay) => (
         <span

@@ -26,7 +26,7 @@ interface Pos {
   y: number;
 }
 
-/** A default resting spot for a note that hasn't been dragged yet — a loose
+/** A default resting spot for a note that hasn't been dragged yet: a loose
  * cascade that wraps so notes don't march off the bottom of the board. */
 function defaultPos(i: number): Pos {
   const col = Math.floor(i / 6);
@@ -111,13 +111,13 @@ function DraggableNote({
       title="Drag to move · click to open"
     >
       {item.content}
-      <span className="zr-note-by">— {item.peerName}</span>
+      <span className="zr-note-by">~ {item.peerName}</span>
     </button>
   );
 }
 
 /** Free-form corkboard of draggable sticky notes. Positions are remembered per
- * room in localStorage (device-local — they aren't shared data). */
+ * room in localStorage (device-local, they aren't shared data). */
 function NoteBoard({ notes, storageKey }: { notes: SharedItem[]; storageKey: string }) {
   const open = useViewerStore((s) => s.open);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -139,7 +139,7 @@ function NoteBoard({ notes, storageKey }: { notes: SharedItem[]; storageKey: str
         try {
           localStorage.setItem(storageKey, JSON.stringify(next));
         } catch {
-          /* storage full / unavailable — position just won't persist */
+          /* storage full / unavailable, position just won't persist */
         }
         return next;
       });

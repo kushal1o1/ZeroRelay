@@ -3,7 +3,7 @@
  *
  * `navigator.clipboard` only exists in a secure context (https or localhost).
  * When the app is opened over a plain-http LAN IP (common when testing P2P
- * across devices), it's undefined — so we fall back to a hidden <textarea> +
+ * across devices), it's undefined, so we fall back to a hidden <textarea> +
  * execCommand("copy"), which still works there. Returns whether it succeeded.
  */
 export async function copyText(text: string): Promise<boolean> {

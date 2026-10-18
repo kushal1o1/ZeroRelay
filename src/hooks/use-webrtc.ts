@@ -1,28 +1,24 @@
 "use client";
-import { extractCandidateIP, sameLAN } from "@/lib/ice";
 import { useRoomStore } from "@/stores/room-store";
 import { useCallback, useEffect, useRef } from "react";
-import type { ClientMessage, SDP } from "../../shared/types";
+import type { ICECandidate, SDP, SignalPayload } from "../../shared/types";
 
 type DataHandler = (peerId: string, data: string) => void;
-type LocaleHandler = (peerId: string, locale: "local" | "remote") => void;
+type SendSignal = (to: string, payload: SignalPayload) => void;
 
 export function useWebRTC(
   peerId: string,
-  sendSignaling: (msg: ClientMessage) => void,
+  sendSignal: SendSignal,
   onData: DataHandler,
   onChannelOpen?: (peerId: string) => void,
-  onPeerLocale?: LocaleHandler,
 ) {
   const connectionsRef = useRef<Map<string, RTCPeerConnection>>(new Map());
   const channelsRef = useRef<Map<string, RTCDataChannel>>(new Map());
   const pendingIceRef = useRef<Map<string, RTCIceCandidateInit[]>>(new Map());
-  const localeClassified = useRef<Set<string>>(new Set());
-  const pendingLocaleIPs = useRef<Map<string, string>>(new Map());
-  const handlersRef = useRef({ onData, sendSignaling, onChannelOpen, onPeerLocale });
-  handlersRef.current = { onData, sendSignaling, onChannelOpen, onPeerLocale };
+  const handlersRef = useRef({ onData, sendSignal, onChannelOpen });
+  handlersRef.current = { onData, sendSignal, onChannelOpen };
 
-  // Recovery bookkeeping (Fix 4/5). Refs break the mutual reference between
+  // Recovery bookkeeping. Refs break the mutual reference between
   // createConnection's event handlers and the initiate/restart callbacks.
   const redialRef = useRef<Map<string, number>>(new Map());
   const initiateRef = useRef<(targetId: string) => void>(() => {});
@@ -84,27 +80,22 @@ export function useWebRTC(
 
       pc.onicecandidate = (e) => {
         if (!e.candidate) return;
-        const msg: ClientMessage = {
-          type: "ice-candidate",
-          roomId: useRoomStore.getState().roomId || "",
-          from: peerId,
-          to: targetId,
+        handlersRef.current.sendSignal(targetId, {
+          kind: "ice",
           candidate: {
             candidate: e.candidate.candidate,
             sdpMid: e.candidate.sdpMid,
             sdpMLineIndex: e.candidate.sdpMLineIndex,
             usernameFragment: e.candidate.usernameFragment,
-            address: e.candidate.address,
           },
-        };
-        handlersRef.current.sendSignaling(msg);
+        });
       };
 
       pc.ondatachannel = (e) => {
         handleDataChannel(targetId, e.channel);
       };
 
-      // Fix 4: on ICE failure the *initiator* drives an in-place ICE restart
+      // On ICE failure the *initiator* drives an in-place ICE restart
       // (a fresh offer with iceRestart), which recovers the link while keeping
       // the existing data channel alive.
       pc.oniceconnectionstatechange = () => {
@@ -113,8 +104,8 @@ export function useWebRTC(
         }
       };
 
-      // Fix 5: a terminal connection failure tears the peer down and — if it's
-      // still present — the initiator redials a fresh connection (capped, with
+      // A terminal connection failure tears the peer down and, if it's
+      // still present, the initiator redials a fresh connection (capped, with
       // backoff). A clean "closed" only cleans up; "connected" clears the
       // redial counter.
       pc.onconnectionstatechange = () => {
@@ -162,11 +153,8 @@ export function useWebRTC(
         // onicecandidate (no more up-to-3s gathering wait).
         const local = pc.localDescription;
         if (!local) return;
-        handlersRef.current.sendSignaling({
-          type: "offer",
-          roomId: useRoomStore.getState().roomId || "",
-          from: peerId,
-          to: targetId,
+        handlersRef.current.sendSignal(targetId, {
+          kind: "offer",
           sdp: { type: local.type, sdp: local.sdp },
         });
       } catch (err) {
@@ -175,34 +163,28 @@ export function useWebRTC(
         connectionsRef.current.delete(targetId);
       }
     },
-    [peerId, createConnection, handleDataChannel],
+    [createConnection, handleDataChannel],
   );
 
-  // Fix 4: in-place ICE restart on the existing connection (initiator side).
-  const restartConnection = useCallback(
-    async (targetId: string) => {
-      const pc = connectionsRef.current.get(targetId);
-      if (!pc || pc.signalingState !== "stable") return;
-      try {
-        const offer = await pc.createOffer({ iceRestart: true });
-        await pc.setLocalDescription(offer);
-        const local = pc.localDescription;
-        if (!local) return;
-        handlersRef.current.sendSignaling({
-          type: "offer",
-          roomId: useRoomStore.getState().roomId || "",
-          from: peerId,
-          to: targetId,
-          sdp: { type: local.type, sdp: local.sdp },
-        });
-      } catch (err) {
-        console.warn(`ICE restart failed for ${targetId}`, err);
-      }
-    },
-    [peerId],
-  );
+  // In-place ICE restart on the existing connection (initiator side).
+  const restartConnection = useCallback(async (targetId: string) => {
+    const pc = connectionsRef.current.get(targetId);
+    if (!pc || pc.signalingState !== "stable") return;
+    try {
+      const offer = await pc.createOffer({ iceRestart: true });
+      await pc.setLocalDescription(offer);
+      const local = pc.localDescription;
+      if (!local) return;
+      handlersRef.current.sendSignal(targetId, {
+        kind: "offer",
+        sdp: { type: local.type, sdp: local.sdp },
+      });
+    } catch (err) {
+      console.warn(`ICE restart failed for ${targetId}`, err);
+    }
+  }, []);
 
-  // Wire the recovery refs now that the callbacks exist (Fix 4/5).
+  // Wire the recovery refs now that the callbacks exist.
   initiateRef.current = initiateConnection;
   restartRef.current = restartConnection;
 
@@ -240,11 +222,8 @@ export function useWebRTC(
         await pc.setLocalDescription(answerDesc);
         const local = pc.localDescription;
         if (!local) return;
-        handlersRef.current.sendSignaling({
-          type: "answer",
-          roomId: useRoomStore.getState().roomId || "",
-          from: peerId,
-          to: from,
+        handlersRef.current.sendSignal(from, {
+          kind: "answer",
           sdp: { type: local.type, sdp: local.sdp },
         });
       } catch (err) {
@@ -272,70 +251,35 @@ export function useWebRTC(
     [flushPendingIce],
   );
 
-  const handleIceCandidate = useCallback(
-    (
-      from: string,
-      candidate: {
-        candidate: string;
-        sdpMid: string | null;
-        sdpMLineIndex: number | null;
-        address?: string | null;
-      },
-    ) => {
-      // Detect peer locale from ICE candidates.  Prefer srflx (public IP,
-      // always real) over host (may be mDNS in Chrome).  "remote" from a
-      // host candidate can be upgraded to "local" once srflx arrives.
-      const isSrflx = candidate.candidate.includes("typ srflx");
-      const rawIP =
-        candidate.address &&
-        !candidate.address.includes(".local") &&
-        /^\d+\.\d+\.\d+\.\d+$/.test(candidate.address)
-          ? candidate.address
-          : extractCandidateIP(candidate.candidate);
-      if (rawIP && isSrflx) {
-        // Srflx — always a real (public) IP.  Classify immediately.
-        const isLocal = sameLAN(rawIP);
-        if (isLocal !== null) {
-          localeClassified.current.add(from);
-          pendingLocaleIPs.current.delete(from);
-          handlersRef.current.onPeerLocale?.(from, isLocal ? "local" : "remote");
-        } else {
-          // Local IPs not detected yet — store for retry.
-          pendingLocaleIPs.current.set(from, rawIP);
-        }
-      } else if (rawIP && isSrflx === false && !localeClassified.current.has(from)) {
-        // Host candidate — defer to srflx if it hasn't arrived yet.
-        const isLocal = sameLAN(rawIP);
-        if (isLocal === true) {
-          localeClassified.current.add(from);
-          handlersRef.current.onPeerLocale?.(from, "local");
-        } else if (isLocal === null) {
-          // Local IPs not detected yet — store so retryPendingLocale can
-          // re-evaluate once our own LAN detection finishes.
-          pendingLocaleIPs.current.set(from, rawIP);
-        } else {
-          // "remote" — add to classified so we don't re-process, but srflx
-          // can override later (srflx branch doesn't check the guard).
-          localeClassified.current.add(from);
-          handlersRef.current.onPeerLocale?.(from, "remote");
-        }
-      }
+  const handleIceCandidate = useCallback((from: string, candidate: ICECandidate) => {
+    const pc = connectionsRef.current.get(from);
+    if (!pc) return;
+    if (!pc.currentRemoteDescription) {
+      const buf = pendingIceRef.current.get(from) || [];
+      buf.push(candidate);
+      pendingIceRef.current.set(from, buf);
+      return;
+    }
+    try {
+      pc.addIceCandidate(new RTCIceCandidate(candidate));
+    } catch (err) {
+      console.warn(`Failed to add ICE candidate from ${from}`, err);
+    }
+  }, []);
 
-      const pc = connectionsRef.current.get(from);
-      if (!pc) return;
-      if (!pc.currentRemoteDescription) {
-        const buf = pendingIceRef.current.get(from) || [];
-        buf.push(candidate);
-        pendingIceRef.current.set(from, buf);
-        return;
-      }
-      try {
-        pc.addIceCandidate(new RTCIceCandidate(candidate));
-      } catch (err) {
-        console.warn(`Failed to add ICE candidate from ${from}`, err);
+  /** Entry point for every relayed signaling payload. */
+  const handleSignal = useCallback(
+    (from: string, payload: SignalPayload) => {
+      switch (payload.kind) {
+        case "offer":
+          return handleOffer(from, payload.sdp);
+        case "answer":
+          return handleAnswer(from, payload.sdp);
+        case "ice":
+          return handleIceCandidate(from, payload.candidate);
       }
     },
-    [],
+    [handleOffer, handleAnswer, handleIceCandidate],
   );
 
   const connectToPeer = useCallback(
@@ -391,8 +335,8 @@ export function useWebRTC(
     }
   }, []);
 
-  // Current outbound buffer for a peer's channel — used to apply backpressure
-  // while streaming file chunks (Fix 6).
+  // Current outbound buffer for a peer's channel, used to apply backpressure
+  // while streaming file chunks.
   const bufferedAmount = useCallback((targetId: string): number => {
     return channelsRef.current.get(targetId)?.bufferedAmount ?? 0;
   }, []);
@@ -413,20 +357,7 @@ export function useWebRTC(
     return sentTo;
   }, []);
 
-  // Re-process any pending locale classifications once local IPs are known.
-  const retryPendingLocale = useCallback(() => {
-    for (const [from, hostIP] of pendingLocaleIPs.current) {
-      if (localeClassified.current.has(from)) continue;
-      const isLocal = sameLAN(hostIP);
-      if (isLocal === true) {
-        localeClassified.current.add(from);
-        handlersRef.current.onPeerLocale?.(from, "local");
-      } else if (isLocal === false) {
-        localeClassified.current.add(from);
-        handlersRef.current.onPeerLocale?.(from, "remote");
-      }
-    }
-  }, []);
+  // Tear down every connection
   // when the component using this hook goes away.
   useEffect(() => {
     return () => {
@@ -438,12 +369,9 @@ export function useWebRTC(
     connectToPeer,
     disconnectFromPeer,
     disconnectAll,
-    handleOffer,
-    handleAnswer,
-    handleIceCandidate,
+    handleSignal,
     sendToPeer,
     broadcast,
     bufferedAmount,
-    retryPendingLocale,
   };
 }

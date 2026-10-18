@@ -44,7 +44,7 @@ export interface Incoming {
 }
 
 /** Accumulate one chunk into the reassembly map. The receiver never holds the
- *  full file in memory — each decoded chunk becomes a separate Blob part that
+ *  full file in memory: each decoded chunk becomes a separate Blob part that
  *  the browser can flush independently. */
 export function applyChunk(
   incoming: Map<string, Incoming>,
@@ -66,7 +66,7 @@ export function applyChunk(
 }
 
 /** Build the final Blob from accumulated parts and trigger the browser
- *  download. Parts are concatenated lazily — no full-file copy. */
+ *  download. Parts are concatenated lazily, no full-file copy. */
 export function finalizeDownload(entry: Incoming, fileName: string, mime: string): void {
   const blob = new Blob(entry.parts, { type: mime || "application/octet-stream" });
   const url = URL.createObjectURL(blob);

@@ -21,6 +21,8 @@ function ChatHome() {
   const connected = useRoomStore((s) => s.connected);
   const roomId = useRoomStore((s) => s.roomId);
   const peers = useRoomStore((s) => s.peers);
+  const error = useRoomStore((s) => s.error);
+  const setError = useRoomStore((s) => s.setError);
   const hydrated = useUIStore((s) => s.hydrated);
   const activeRoomId = useUIStore((s) => s.activeRoomId);
   const { joinRoom } = useRoomContext();
@@ -88,7 +90,7 @@ function ChatHome() {
         >
           {mounted ? (
             <>
-              {/* Name is hidden on mobile — the avatar alone represents you there. */}
+              {/* Name is hidden on mobile; the avatar alone represents you there. */}
               <span className="hidden max-w-24 truncate sm:inline">{name}</span>
               <Avatar name={name} peerId={peerId} size="sm" />
             </>
@@ -97,6 +99,23 @@ function ChatHome() {
           )}
         </button>
       </header>
+
+      {error && (
+        <div
+          role="alert"
+          className="z-10 flex items-center gap-3 border-b border-border bg-destructive/10 px-4 py-2 text-sm text-destructive"
+        >
+          <span className="min-w-0 flex-1">{error}</span>
+          <button
+            type="button"
+            onClick={() => setError(null)}
+            aria-label="Dismiss"
+            className="shrink-0 rounded-md px-2 text-destructive/80 hover:text-destructive"
+          >
+            ✕
+          </button>
+        </div>
+      )}
 
       <main className="min-h-0 flex-1">
         <RoomView onEditProfile={() => setProfileOpen(true)} />

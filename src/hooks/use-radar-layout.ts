@@ -16,7 +16,7 @@ const MAX_PER_RING = 8;
 /** Cap the radar's size so it stays a tidy dial on a huge stage instead of
  * sprawling (and dragging the sweep arc off into the corner). */
 const MAX_DIM = 820;
-/* Ring geometry (shared with radar-rings.tsx — keep in sync). The first ring
+/* Ring geometry (shared with radar-rings.tsx, keep in sync). The first ring
  * sits well clear of the sun so peers never crowd the centre. */
 const BASE_RADIUS_F = 0.3;
 const RING_GAP_F = 0.1;
