@@ -84,7 +84,12 @@ export interface ICECandidate {
 export type SignalPayload =
   | { kind: "offer"; sdp: SDP }
   | { kind: "answer"; sdp: SDP }
-  | { kind: "ice"; candidate: ICECandidate };
+  | { kind: "ice"; candidate: ICECandidate }
+  /** Lobby: ask a peer on another network to connect. */
+  | { kind: "invite" }
+  | { kind: "invite-reply"; accepted: boolean }
+  /** Lobby: end a cross-network link. */
+  | { kind: "bye" };
 
 // ── Client → Server ──
 
