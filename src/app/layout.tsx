@@ -1,9 +1,20 @@
-import type { Metadata } from "next";
+import { PwaSetup } from "@/components/pwa-setup";
+import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
   title: "0Relay",
   description: "Peer-to-peer file sharing on the network",
+  applicationName: "ZeroRelay",
+  appleWebApp: { capable: true, title: "ZeroRelay", statusBarStyle: "black-translucent" },
+  icons: { apple: "/icons/apple-touch-icon.png" },
+};
+
+export const viewport: Viewport = {
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#ffffff" },
+    { media: "(prefers-color-scheme: dark)", color: "#0a0a0a" },
+  ],
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -29,7 +40,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           }}
         />
       </head>
-      <body className="antialiased">{children}</body>
+      <body className="antialiased">
+        <PwaSetup />
+        {children}
+      </body>
     </html>
   );
 }
