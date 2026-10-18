@@ -245,15 +245,16 @@ sequenceDiagram
   Note over O: still have it? shared with this peer?
   O->>R: opens channel "xfer:<transferId>"
   O->>R: { t: start, size }
-  loop 64 KB binary chunks
+  loop binary chunks (up to 256 KB)
     O->>R: chunk
-    R-->>O: { t: ack, bytes } every 1 MB written
+    R-->>O: { t: ack, bytes } every 2 MB written
   end
   O->>R: { t: end }
   R-->>O: { t: ack, bytes: size }
 ```
 
-- **Flow control**: the receiver acks bytes it has *written*, and the owner never runs more than 8 MB ahead of that (plus the channel's own buffer limit). A slow phone disk can't make data pile up in memory.
+- **Chunk size**: as large as the receiving browser accepts (the link's max message size), capped at 256 KB; 64 KB when the browser doesn't say.
+- **Flow control**: the receiver acks bytes it has *written*, and the owner never runs more than 16 MB ahead of that, nor lets the channel buffer pass 8 MB. A slow phone disk can't make data pile up in memory.
 - **Storage**: files over 8 MB are written straight to the Origin Private File System (on disk, invisible to the user) when the browser supports it, after checking free space. Smaller files, and browsers without OPFS writes (including plain-http pages), use memory, up to 512 MB. Received copies are kept for the session so "Save again" needs no re-transfer, and are cleared on the next start and by "Erase all data".
 - **Authorization**: a file sent to specific people is only served to them. A file sent to everyone is served to members of the room it was shared in.
 - **Status on both sides**: requesting, progress and speed, done, failed with a reason, or cancelled. Either side can cancel. A transfer fails if no data (or no ack) arrives for 30 s, or if the link drops.
@@ -264,10 +265,17 @@ sequenceDiagram
 
 | Storage | Content |
 |---|---|
-| IndexedDB (Dexie) | `messages` (SharedItem), `avatars` (peerId → dataUrl) |
+| IndexedDB (Dexie, schema v5) | `messages` (SharedItem + indexed `expiresAt`), `avatars` (peerId → dataUrl, indexed `seen`) |
 | Origin Private File System (`zerorelay-incoming/`) | Received large files for the current session |
 | localStorage | Identity secret, display name, theme |
 | localStorage (`zerorelay-rooms`, Zustand persist v2) | Saved rooms with join/owner tokens (never passwords), active room, lobby visibility |
+
+- **Expiry**: each saved message stores when it expires; cleanup (every minute and on load) is a single index range delete, never a full scan. "Session" messages are never written to disk.
+- **Never lose a message to storage**: a new message is shown first and saved second. If saving fails (e.g. storage full), the user is told it won't survive a reload.
+- **Size caps**: text messages are limited to 256 KB (longer text can be sent as a file in one tap); peers enforce the same limit.
+- **Avatars** of peers not seen for 30 days are pruned on load (never your own).
+- **Persistent storage**: the app asks the browser to keep its data when you share something with a "keep" setting, and from the "Keep my data" button. Otherwise browsers may evict it under pressure (Safari after 7 days without a visit).
+- **Storage meter** (profile dialog): total used vs. available, saved messages, received files for this session with a "Clear" button, and whether the data is protected from eviction.
 
 | Server storage | Content |
 |---|---|

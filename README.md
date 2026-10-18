@@ -19,7 +19,7 @@
 | **P2P Mesh** | Peers connect directly to each other over WebRTC. Big rooms link on demand, and links keep working through signaling outages |
 | **Share Any Type** | Chat, code (monospace), notes (italic), Markdown, or files of any size |
 | **Phone-friendly transfers** | Big files stream straight to disk instead of RAM, with progress on both sides, speed, cancel, and clear errors (no space, sender offline, file gone) |
-| **Retention Model** | Per-item: session, 5min, 1h, 1d, or forever |
+| **Retention Model** | Per-item: session, 5min, 1h, 1d, or forever. See and manage what's stored on your device from your profile |
 | **Zero Backend DB** | IndexedDB on each peer for persistence - nothing stored on the server |
 
 ---
