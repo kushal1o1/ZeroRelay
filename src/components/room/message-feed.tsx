@@ -6,6 +6,8 @@ import { useStorage } from "@/hooks/use-storage";
 import { copyText } from "@/lib/clipboard";
 import { formatSize } from "@/lib/format";
 import { hashString } from "@/lib/hash";
+import { isMarkdownFileName } from "@/lib/markdown";
+import { useMarkdownPreviewStore } from "@/stores/markdown-preview-store";
 import { useMessageStore } from "@/stores/message-store";
 import { useRoomStore } from "@/stores/room-store";
 import { useUIStore } from "@/stores/ui-store";
@@ -84,12 +86,53 @@ export function CodeCard({ item }: { item: SharedItem }) {
   );
 }
 
+export function MarkdownCard({ item }: { item: SharedItem }) {
+  const [copied, setCopied] = useState(false);
+  const openText = useMarkdownPreviewStore((s) => s.openText);
+  const markdown = item.content ?? "";
+  const long = markdown.split("\n").length > 6 || markdown.length > 320;
+  const copy = async () => {
+    if (await copyText(markdown)) {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1200);
+    }
+  };
+
+  return (
+    <div className="zr-term relative">
+      <div className="zr-term-bar relative z-20">
+        <span className="zr-term-dot" style={{ background: "#6b6b6b" }} />
+        <span className="zr-term-dot" style={{ background: "#8a8a8a" }} />
+        <span className="zr-term-dot" style={{ background: "#a5a5a5" }} />
+        <span className="zr-term-name">Markdown</span>
+        <button type="button" className="zr-term-copy" onClick={copy}>
+          {copied ? "✓ copied" : "⧉ copy all"}
+        </button>
+      </div>
+      <div className="zr-term-body">
+        {markdown}
+        {long && <div className="zr-term-fade" />}
+      </div>
+      <button
+        type="button"
+        aria-label="Open Markdown preview"
+        title="Click to open"
+        onClick={() => openText(item)}
+        className="absolute inset-0 z-10 cursor-zoom-in"
+      />
+    </div>
+  );
+}
+
 export function FileCard({ item }: { item: SharedItem }) {
   const { requestFile } = useRoomContext();
   const myPeerId = useRoomStore((s) => s.peerId);
   const pct = useMessageStore((s) => s.progress[item.id]);
+  const transfer = useMessageStore((s) => s.transfers[item.id]);
   const mine = item.peerId === myPeerId;
   const handleClick = () => requestFile(item);
+  const markdownFile = isMarkdownFileName(item.fileName);
+  const handlePreview = () => requestFile(item, "preview");
 
   return (
     <div className="zr-filecard">
@@ -111,13 +154,30 @@ export function FileCard({ item }: { item: SharedItem }) {
           </button>
         )}
       </div>
+      {markdownFile && (
+        <button
+          type="button"
+          onClick={handlePreview}
+          disabled={Boolean(transfer)}
+          className="mt-2 inline-flex items-center gap-1 rounded-lg border border-border px-2.5 py-1 font-mono text-[11px] font-semibold text-foreground transition-colors hover:bg-muted disabled:cursor-wait disabled:opacity-50"
+        >
+          {transfer === "preview"
+            ? "Opening preview…"
+            : transfer === "download"
+              ? "Download in progress"
+              : "Preview MD"}
+        </button>
+      )}
       {mine ? (
         <div className="mt-2 text-[10px] text-muted-foreground">Sent</div>
+      ) : transfer === "preview" ? (
+        <div className="mt-2 text-[10px] text-muted-foreground">Fetching Markdown preview…</div>
       ) : pct === undefined ? (
         <button
           type="button"
           onClick={handleClick}
-          className="mt-2 inline-flex items-center gap-1.5 rounded-lg bg-accent px-3 py-1 font-mono text-[11px] font-semibold text-accent-foreground transition-opacity hover:opacity-90"
+          disabled={transfer === "preview"}
+          className="mt-2 inline-flex items-center gap-1.5 rounded-lg bg-accent px-3 py-1 font-mono text-[11px] font-semibold text-accent-foreground transition-opacity hover:opacity-90 disabled:opacity-50"
         >
           ↓ download
         </button>
@@ -150,6 +210,8 @@ function MessageBody({ item, mine }: { item: SharedItem; mine: boolean }) {
       return <CodeCard item={item} />;
     case "note":
       return <NoteCard item={item} />;
+    case "markdown":
+      return <MarkdownCard item={item} />;
     case "file":
       return <FileCard item={item} />;
     default:

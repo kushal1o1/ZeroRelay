@@ -14,6 +14,8 @@ interface MessageState {
   loaded: boolean;
   /** sharedItemId -> download progress 0..1 (used by file transfer, Fix 6). */
   progress: Record<string, number>;
+  /** sharedItemId -> current transfer purpose, used to avoid overlapping actions. */
+  transfers: Record<string, "download" | "preview">;
 
   load: () => Promise<void>;
   refresh: () => Promise<void>;
@@ -22,6 +24,8 @@ interface MessageState {
   removeRoomItems: (roomId: string) => Promise<void>;
   clearAll: () => Promise<void>;
   setProgress: (id: string, value: number) => void;
+  clearProgress: (id: string) => void;
+  setTransferMode: (id: string, mode: "download" | "preview" | null) => void;
 }
 
 /**
@@ -33,6 +37,7 @@ export const useMessageStore = create<MessageState>((set, get) => ({
   items: [],
   loaded: false,
   progress: {},
+  transfers: {},
 
   load: async () => {
     if (get().loaded) return;
@@ -59,20 +64,45 @@ export const useMessageStore = create<MessageState>((set, get) => ({
     await deleteMessage(id);
     set((s) => {
       const progress = { ...s.progress };
+      const transfers = { ...s.transfers };
       delete progress[id];
-      return { items: s.items.filter((i) => i.id !== id), progress };
+      delete transfers[id];
+      return { items: s.items.filter((i) => i.id !== id), progress, transfers };
     });
   },
 
   removeRoomItems: async (roomId) => {
     await deleteRoomMessages(roomId);
-    set((s) => ({ items: s.items.filter((i) => i.roomId !== roomId) }));
+    set((s) => {
+      const transfers = { ...s.transfers };
+      const progress = { ...s.progress };
+      for (const item of s.items) {
+        if (item.roomId === roomId) {
+          delete transfers[item.id];
+          delete progress[item.id];
+        }
+      }
+      return { items: s.items.filter((i) => i.roomId !== roomId), progress, transfers };
+    });
   },
 
   clearAll: async () => {
     await clearAllData();
-    set({ items: [], loaded: false, progress: {} });
+    set({ items: [], loaded: false, progress: {}, transfers: {} });
   },
 
   setProgress: (id, value) => set((s) => ({ progress: { ...s.progress, [id]: value } })),
+  clearProgress: (id) =>
+    set((s) => {
+      const progress = { ...s.progress };
+      delete progress[id];
+      return { progress };
+    }),
+  setTransferMode: (id, mode) =>
+    set((s) => {
+      const transfers = { ...s.transfers };
+      if (mode) transfers[id] = mode;
+      else delete transfers[id];
+      return { transfers };
+    }),
 }));
