@@ -2,8 +2,12 @@ name = "zerorelay-signaling"
 main = "src/index.ts"
 compatibility_date = "2025-12-01"
 
-# Secrets (set with `wrangler secret put <NAME>`):
-#   IP_SALT  salt for hashing client IPs into network keys (dev falls back to a constant)
+# Set in the Cloudflare dashboard (Settings > Variables and Secrets):
+#   IP_SALT          secret: salt for hashing client IPs into network keys
+#   ALLOWED_ORIGINS  text:   comma-separated sites allowed to use this worker
+
+# Keep dashboard-set variables when deploying from this file.
+keep_vars = true
 
 [[durable_objects.bindings]]
 name = "ROOM_DO"

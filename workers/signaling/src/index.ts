@@ -8,6 +8,7 @@ import {
   privateObjectName,
 } from "./env";
 import { netKey } from "./net";
+import { corsHeaders, originPolicy } from "./origin";
 
 export { RoomDO } from "./room-do";
 export { WorldDO } from "./world-do";
@@ -19,16 +20,17 @@ export { WorldDO } from "./world-do";
 
 const DEV_SALT = "zerorelay-dev-salt";
 
-const CORS = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "GET, OPTIONS",
-  "Access-Control-Max-Age": "86400",
-};
-
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
     const net = netKey(request.headers.get("CF-Connecting-IP"), env.IP_SALT || DEV_SALT);
+
+    const origin = request.headers.get("Origin");
+    const allowed = originPolicy(env.ALLOWED_ORIGINS);
+    if (url.pathname.startsWith("/api/") && !allowed(origin)) {
+      return new Response("Origin not allowed", { status: 403 });
+    }
+    const CORS = corsHeaders(origin, !env.ALLOWED_ORIGINS);
 
     if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: CORS });
 
