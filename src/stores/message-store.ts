@@ -6,6 +6,7 @@ import {
   getMessages,
   saveMessage,
 } from "@/lib/db";
+import { useRoomStore } from "@/stores/room-store";
 import type { SharedItem } from "@/types/message";
 import { create } from "zustand";
 
@@ -47,8 +48,18 @@ export const useMessageStore = create<MessageState>((set, get) => ({
     // De-dupe by id: the sender echoes its own share locally, and a broadcast
     // could otherwise arrive back through more than one path.
     if (get().items.some((i) => i.id === item.id)) return;
-    await saveMessage(item);
+    // Show it first: a storage problem must never make a message disappear.
     set((s) => ({ items: [item, ...s.items] }));
+    try {
+      await saveMessage(item);
+    } catch (err) {
+      console.warn("Saving message failed", err);
+      useRoomStore
+        .getState()
+        .setError(
+          "Couldn't save a message on this device (storage may be full). It's shown for now but won't be kept after a reload.",
+        );
+    }
   },
 
   removeItem: async (id) => {
