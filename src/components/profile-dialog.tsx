@@ -1,6 +1,7 @@
 "use client";
 
 import { useRoomContext } from "@/components/room-provider";
+import { StorageSection } from "@/components/storage-section";
 import { Avatar } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
@@ -115,6 +116,8 @@ export function ProfileDialog({ open, onClose, onEraseAll }: ProfileDialogProps)
             Save
           </Button>
         </div>
+
+        <StorageSection open={open} />
 
         <div className="border-t border-border pt-4">
           <p className="text-[11px] font-semibold uppercase tracking-wide text-destructive">

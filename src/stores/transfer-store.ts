@@ -30,6 +30,8 @@ interface TransferState {
   remove: (id: string) => void;
   setSaved: (itemId: string, blob: Blob) => void;
   setUnavailable: (itemId: string, reason: string) => void;
+  /** Forget finished downloads (their temp files are being deleted). */
+  clearSaved: () => void;
   clear: () => void;
 }
 
@@ -54,6 +56,7 @@ export const useTransferStore = create<TransferState>((set) => ({
   setSaved: (itemId, blob) => set((s) => ({ saved: { ...s.saved, [itemId]: blob } })),
   setUnavailable: (itemId, reason) =>
     set((s) => ({ unavailable: { ...s.unavailable, [itemId]: reason } })),
+  clearSaved: () => set({ saved: {} }),
   clear: () => set({ transfers: {}, saved: {}, unavailable: {} }),
 }));
 
