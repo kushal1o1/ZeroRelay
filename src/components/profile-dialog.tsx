@@ -1,5 +1,6 @@
 "use client";
 
+import { InstallSection } from "@/components/install-section";
 import { useRoomContext } from "@/components/room-provider";
 import { StorageSection } from "@/components/storage-section";
 import { Avatar } from "@/components/ui/avatar";
@@ -116,6 +117,8 @@ export function ProfileDialog({ open, onClose, onEraseAll }: ProfileDialogProps)
             Save
           </Button>
         </div>
+
+        <InstallSection />
 
         <StorageSection open={open} />
 

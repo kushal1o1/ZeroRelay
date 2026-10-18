@@ -1,6 +1,7 @@
 "use client";
 
 import { formatSize } from "@/lib/format";
+import { usePwaStore } from "@/stores/pwa-store";
 import { type ItemType, MAX_TEXT_CHARS, RETENTION_LABELS, type Retention } from "@/types/message";
 import { useEffect, useRef, useState } from "react";
 
@@ -57,6 +58,21 @@ export function Composer({
         ? targetNames[0]
         : `${targetNames.length} people`;
   const targetLabel = targetShort;
+
+  // Something was shared into the app from another app: stage it here so the
+  // user picks who gets it, then sends as usual.
+  const incoming = usePwaStore((s) => s.incoming);
+  useEffect(() => {
+    if (!incoming) return;
+    if (incoming.files.length > 0) {
+      setType("file");
+      setStaged(incoming.files);
+    } else {
+      setType("text");
+      setText(incoming.text);
+    }
+    usePwaStore.getState().setIncoming(null);
+  }, [incoming]);
 
   // Close the recipient picker on outside click / Escape.
   useEffect(() => {

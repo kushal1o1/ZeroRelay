@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <rect width="512" height="512" rx="112" fill="#0a0a0a"/>
+  <g transform="translate(90.9 87.0) scale(13)" fill="none" stroke-linecap="round" stroke-width="2.6">
+    <g transform="translate(1.4 2)" stroke="#4a4a4a">
+      <ellipse cx="12" cy="12" rx="7" ry="9"/>
+      <line x1="6.4" y1="12" x2="17.6" y2="12"/>
+    </g>
+    <g stroke="#ffffff">
+      <ellipse cx="12" cy="12" rx="7" ry="9"/>
+      <line x1="6.4" y1="12" x2="17.6" y2="12"/>
+    </g>
+  </g>
+</svg>

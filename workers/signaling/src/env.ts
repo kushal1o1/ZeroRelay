@@ -6,6 +6,8 @@ export interface Env {
   WORLD_DO: DurableObjectNamespace<WorldDO>;
   /** Salt for hashing client IPs into network keys (`wrangler secret put IP_SALT`). */
   IP_SALT?: string;
+  /** Comma-separated origins allowed to use the worker from a browser. Unset = any. */
+  ALLOWED_ORIGINS?: string;
 }
 
 /** Internal headers the router sets on requests forwarded to a RoomDO. */

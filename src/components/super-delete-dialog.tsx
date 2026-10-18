@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { clearIdentity } from "@/lib/identity";
+import { clearSharedFiles } from "@/lib/share-intake";
 import { clearIncoming } from "@/lib/transfer/sinks";
 import { useMessageStore } from "@/stores/message-store";
 import { useUIStore } from "@/stores/ui-store";
@@ -29,6 +30,7 @@ export function SuperDeleteDialog({ open, onClose }: SuperDeleteDialogProps) {
     try {
       await useMessageStore.getState().clearAll();
       await clearIncoming();
+      await clearSharedFiles();
       localStorage.removeItem("zerorelay-name");
       clearIdentity();
       localStorage.removeItem("theme");
