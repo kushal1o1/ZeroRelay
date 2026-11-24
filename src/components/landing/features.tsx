@@ -5,7 +5,7 @@ const features = [
   },
   {
     title: "Private Rooms",
-    desc: "Share a room code, add an optional password. Only the creator can delete it.",
+    desc: "Share a room code, add an optional password.",
   },
   {
     title: "Any File Type",
