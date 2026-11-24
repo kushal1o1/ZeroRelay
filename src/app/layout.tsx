@@ -1,4 +1,5 @@
 import { PwaSetup } from "@/components/pwa-setup";
+import { Analytics } from "@vercel/analytics/next";
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
@@ -43,6 +44,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className="antialiased">
         <PwaSetup />
         {children}
+        <Analytics />
       </body>
     </html>
   );
